@@ -1,7 +1,5 @@
 # nanopim4-satahat-fan
-Bash scripts to control the 2-PIN PH2.0 12v fan connector from the Nano Pi M4 SATA hat with a systemd implementation
-
-Each script has comments that will help you change it according to your needs
+Bash scripts to control the 2-PIN PH2.0 12v fan connector from the Nano Pi M4 SATA hat with a systemd implementation. Each script has comments that will help you change it according to your needs.
 
 # Installation
 ```
@@ -23,7 +21,7 @@ bash pwm-fan-off.sh
 # Run it as a service
 ```
 # Copy the pwm-fan.service file to your systemd folder
-cp /opt/nanopim4-satahat-fan/systemd/pwm-fan.service /lib/systemd/system/
+cp /opt/nanopim4-satahat-fan/pwm-fan.service /lib/systemd/system/
 # Enable the service and start it
 systemctl enable pwm-fan.service
 systemctl start pwm-fan.service
