@@ -1,5 +1,5 @@
 # nanopim4-satahat-fan
-Bash scripts to control the 2-PIN PH2.0 12v fan connector from the Nano Pi M4 SATA hat with a systemd implementation. Each script has comments that will help you change it according to your needs.
+Bash scripts to control the **[2-PIN PH2.0 12v fan connector from the Nano Pi M4 SATA hat](http://wiki.friendlyarm.com/wiki/index.php/NanoPi_M4_SATA_HAT)** with a systemd implementation to run the as a simple background service. I added comments to each script that might help you change it according to your needs, especially the fan `period` and `duty_cycle`.
 
 # Authorship
 This is a slightly modified version of **[mar0ni's script](https://forum.armbian.com/topic/11086-pwm-fan-on-nanopi-m4/?tab=comments#comment-95180)**.
