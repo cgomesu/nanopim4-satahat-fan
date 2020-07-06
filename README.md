@@ -32,4 +32,4 @@ systemctl stop pwm-fan.service
 # Then start the service again
 systemctl start pwm-fan.service
 ```
-If you have permission issues, just add 'sudo' before each command
+If you have permission issues, use a sudo user and add `sudo` before each command
