@@ -1,19 +1,17 @@
 [Unit]
 Description=A bash script to control the PWM1 fan from the NanoPi M4 SATA hat
-After=multi-user.target
 
 [Service]
 # Edit the directory below if you placed the Exec scripts
-WorkingDirectory=/opt/nanopim4-satahat-fan/
 Type=simple
 
 # Exec scripts
-ExecStart=/bin/bash pwm-fan-on.sh
-ExecStop=/bin/bash pwm-fan-off.sh && /bin/kill -2 $MAINPID
+ExecStart=/bin/bash /opt/nanopim4-satahat-fan/pwm-fan-on.sh
+ExecStop=/bin/bash /opt/nanopim4-satahat-fan/pwm-fan-off.sh && /bin/kill -2 $MAINPID
 
 # Restart options
 Restart=always
-RestartSec=10
+RestartSec=15
 
 [Install]
 WantedBy=multi-user.target
