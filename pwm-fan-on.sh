@@ -25,7 +25,7 @@ echo 40000 > /sys/class/pwm/pwmchip1/pwm0/period
 echo normal > /sys/class/pwm/pwmchip1/pwm0/polarity
 
 # Run fan at full speed for 10s when the script starts and keep running at low speed
-echo 40000 > /sys/class/pwm/pwmchip1/pwm0/duty_cycle
+echo 39990 > /sys/class/pwm/pwmchip1/pwm0/duty_cycle
 echo 1 > /sys/class/pwm/pwmchip1/pwm0/enable
 sleep 10
 echo 1500 > /sys/class/pwm/pwmchip1/pwm0/duty_cycle
@@ -33,7 +33,7 @@ echo 1500 > /sys/class/pwm/pwmchip1/pwm0/duty_cycle
 # CPU temps to monitor
 declare -a CpuTemps=(75000 65000 55000 40000 25000 0)
 # Duty cycle for each CPU temp range
-declare -a DutyCycles=(40000 6000 3000 2000 1500 0)
+declare -a DutyCycles=(39990 6000 3000 2000 1500 0)
 
 # Main loop to monitor cpu temp and assign duty cycles accordingly
 while true
