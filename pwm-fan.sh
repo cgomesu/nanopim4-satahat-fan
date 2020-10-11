@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ############################################################################
-# Bash script to control the NanoPi M4 SATA hat PWM1 fan via sysfs interface
+# Bash script to control the NanoPi M4 SATA hat fan via the sysfs interface
 ############################################################################
 # Officila sysfs doc:
 # https://www.kernel.org/doc/Documentation/pwm.txt
@@ -69,7 +69,7 @@ unexport_pwmchip1_channel () {
 
 export_pwmchip1_channel () {
 	if [[ ! -d "$CHANNEL_FOLDER" ]]; then
-	    local EXPORT='/sys/class/pwm/pwmchip1/export'
+	    local EXPORT=$PWMCHIP1_FOLDER'export'
 	    cache 'export'
 	    local EXPORT_SET=$(echo 0 2> "$CACHE" > "$EXPORT")
 	    if [[ ! -z $(cat "$CACHE") ]]; then
@@ -112,7 +112,7 @@ pwmchip1 () {
 		end 'Cannot access pwmchip1 sysfs interface.' 1
 	fi
 	echo '[pwm-fan] Working with the sysfs interface for the pwmchip1.'
-	echo '[pwm-fan] For reference, your pwmchip1 supports '$(cat $PWMCHIP1_FOLDER'npwm')' channels.'
+	echo '[pwm-fan] For reference, your pwmchip1 supports '$(cat $PWMCHIP1_FOLDER'npwm')' channel(s).'
 	# set channel for the pwmchip1
 	CHANNEL="$1"
 	if [[ -z "$CHANNEL" ]]; then
@@ -155,7 +155,6 @@ set_default () {
 			end 'Unable to set an appropriate value for the period.' 1
 		fi
 	fi
-	# set polarity
 	echo 'normal' > $CHANNEL_FOLDER'polarity'
 	# let user know about default values
 	echo '[pwm-fan] Default polarity set to '$(cat $CHANNEL_FOLDER'polarity')'.'
@@ -209,12 +208,60 @@ fan_initialization () {
 			end 'Unable to set max duty_cycle.' 1
 		fi
 	fi
+	# set global max duty cycle
+	MAX_DUTY_CYCLE=$READ_MAX_DUTY_CYCLE
 	echo '[pwm-fan] Running fan at full speed for the next '$TIME' seconds...'
 	echo 1 > $CHANNEL_FOLDER'enable'
 	sleep $TIME
-	# keep it running at half period
-	echo $((READ_MAX_DUTY_CYCLE/2)) > $CHANNEL_FOLDER'duty_cycle'
-	echo '[pwm-fan] Initialization done. Duty cycle at 25% now: '$((READ_MAX_DUTY_CYCLE/4))' ns.'
+	# keep it running at 25% period
+	echo $((MAX_DUTY_CYCLE/2)) > $CHANNEL_FOLDER'duty_cycle'
+	echo '[pwm-fan] Initialization done. Duty cycle at 25% now: '$((MAX_DUTY_CYCLE/4))' ns.'
+}
+
+thermal_monit () {
+	local MONIT_DEVICE=$1
+	if [[ -z $MONIT_DEVICE ]]; then
+		# assume soc
+		local MONIT_DEVICE='soc'
+	fi
+	local THERMAL_FOLDER='/sys/class/thermal/'
+	if [[ -d $THERMAL_FOLDER ]]; then
+		local ZONES=('thermal_zone0/' 'thermal_zone1/' 'thermal_zone2/' 'thermal_zone3/')
+		for zone in ${ZONES[@]}; do
+			if [[ -d $THERMAL_FOLDER$zone ]]; then
+				if [[ $(cat $THERMAL_FOLDER$zone'type') =~ $MONIT_DEVICE ]]; then
+					# temp in millidegree Celsius
+					TEMP_FILE=$THERMAL_FOLDER$zone'temp'
+					TEMP=$(cat $TEMP_FILE)
+					echo '[pwm-fan] Found the '$MONIT_DEVICE' temperature at '$TEMP_FILE
+					echo '[pwm-fan] Current '$MONIT_DEVICE' temp is: '$((TEMP/1000))' Celsius'
+					echo '[pwm-fan] Setting fan to monitor the '$MONIT_DEVICE' temperature.'
+					THERMAL_STATUS=1
+					break
+				fi
+			fi
+		done
+	else
+		echo '[pwm-fan] Sys interface for the thermal zones cannot be found at '$THERMAL_FOLDER
+	fi
+	echo '[pwm-fan] Setting fan to operate independent of the '$MONIT_DEVICE' temperature.'
+	THERMAL_STATUS=0
+}
+
+fan_run () {
+	if [[ -z $THERMAL_STATUS ]]; then
+		# assume independent of other devices
+		THERMAL_STATUS=0
+	fi
+	# run loop
+	while [[ true ]]; do
+		if [[ $THERMAL_STATUS -eq 1 ]]; then
+			# monitoring temperature
+		else
+			echo $MAX_DUTY_CYCLE > $CHANNEL_FOLDER'duty_cycle'
+			echo '[pwm-fan] Running fan at full speed until stopped (Ctrl+C or kill '$$')...'
+		fi
+	done
 }
 
 # takes channel (pwmN) and period (integer in ns) as arg
@@ -223,36 +270,36 @@ config () {
 	export_pwmchip1_channel
 	fan_startup "$2"
 	fan_initialization 5
+	thermal_monit "soc"
+	fan_run
 }
 
 # run pwm-fan
 start
 trap 'interrupt' SIGINT SIGHUP SIGTERM SIGKILL
-# user may provide custom period as first arg
+# user may provide custom period (in nanoseconds) as arg to the script
 config pwm0 $1
 end 'Finished without any errors' 0
 
-# CPU temps to monitor
-declare -a CpuTemps=(75000 65000 55000 40000 25000 0)
-# Duty cycle for each CPU temp range
-declare -a DutyCycles=(39990 6000 3000 2000 1500 0)
+# # CPU temps to monitor
+# declare -a CpuTemps=(75000 65000 55000 40000 25000 0)
+# # Duty cycle for each CPU temp range
+# declare -a DutyCycles=(39990 6000 3000 2000 1500 0)
 
-# Main loop to monitor cpu temp and assign duty cycles accordingly
-while true
-do
-	temp0=$(cat /sys/class/thermal/thermal_zone0/temp)
-	# If you changed the length of $CpuTemps and $DutyCycles, then change the following length, too
-	for i in 0 1 2 3 4 5; do
-		if [ $temp0 -gt ${CpuTemps[$i]} ]; then
-			DUTY=${DutyCycles[$i]}
-			echo $DUTY > "/sys/class/pwm/pwmchip1/pwm0/duty_cycle";
-			# To test the script, uncomment the following:
-			#echo "temp: $temp0, target: ${CpuTemps[$i]}, duty: $DUTY"
-			break		
-		fi
-	done
-	# Change the following if you want the script to change the fan speed more/less frequently
-	sleep 10s;
-done
-
-exit 0
+# # Main loop to monitor cpu temp and assign duty cycles accordingly
+# while true
+# do
+# 	temp0=$(cat /sys/class/thermal/thermal_zone0/temp)
+# 	# If you changed the length of $CpuTemps and $DutyCycles, then change the following length, too
+# 	for i in 0 1 2 3 4 5; do
+# 		if [ $temp0 -gt ${CpuTemps[$i]} ]; then
+# 			DUTY=${DutyCycles[$i]}
+# 			echo $DUTY > "/sys/class/pwm/pwmchip1/pwm0/duty_cycle";
+# 			# To test the script, uncomment the following:
+# 			#echo "temp: $temp0, target: ${CpuTemps[$i]}, duty: $DUTY"
+# 			break		
+# 		fi
+# 	done
+# 	# Change the following if you want the script to change the fan speed more/less frequently
+# 	sleep 10s;
+# done
