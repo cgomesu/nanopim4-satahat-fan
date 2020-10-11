@@ -61,7 +61,12 @@ unexport_pwmchip1_channel () {
 		echo 0 > $CHANNEL_FOLDER'enable'
 		sleep 1
 		echo 0 > $PWMCHIP1_FOLDER'unexport'
-		echo '[pwm-fan] Channel '$CHANNEL' was disabled.'
+		sleep 1
+		if [[ ! -d "$CHANNEL_FOLDER" ]]; then
+			echo '[pwm-fan] Channel '$CHANNEL' was disabled.'
+		else
+			echo '[pwm-fan] Channel '$CHANNEL' is still enabled. Please check '$CHANNEL_FOLDER'.'
+		fi
 	else
 		echo '[pwm-fan] There is no channel to disable.'
 	fi
@@ -102,7 +107,7 @@ export_pwmchip1_channel () {
 
 interrupt () {
 	echo '!! ATTENTION !!'
-	end 'Received a signal to stop the script.' 1
+	end 'Received a signal to stop the script.' 0
 }
 
 pwmchip1 () {
@@ -237,7 +242,7 @@ thermal_monit () {
 					echo '[pwm-fan] Current '$MONIT_DEVICE' temp is: '$((TEMP/1000))' Celsius'
 					echo '[pwm-fan] Setting fan to monitor the '$MONIT_DEVICE' temperature.'
 					THERMAL_STATUS=1
-					break
+					return
 				fi
 			fi
 		done
@@ -249,19 +254,22 @@ thermal_monit () {
 }
 
 fan_run () {
-	if [[ -z $THERMAL_STATUS ]]; then
-		# assume independent of other devices
-		THERMAL_STATUS=0
-	fi
-	# run loop
-	while [[ true ]]; do
-		if [[ $THERMAL_STATUS -eq 1 ]]; then
-			# monitoring temperature
-		else
+	if [[ $THERMAL_STATUS -eq 0 ]]; then
+		echo '[pwm-fan] Running fan at full speed until stopped (Ctrl+C or kill '$$')...'
+		while [[ true ]]; do
 			echo $MAX_DUTY_CYCLE > $CHANNEL_FOLDER'duty_cycle'
-			echo '[pwm-fan] Running fan at full speed until stopped (Ctrl+C or kill '$$')...'
-		fi
-	done
+		done
+	else
+		echo '[pwm-fan] Running fan in temp monitor mode until stopped (Ctrl+C or kill '$$')...'
+		# TODO: select fancontrol algorithm
+		# temp thresholds ?
+		# TODO: Write a fancontrol algorithm based on average temp and temp change over time.
+		# TODO: This should be more reliable than fixed values but set thresholds for both fan speed
+		# TODO: (because the fan will stop spinning if the duty cycle is too low) and temperature 
+		while [[ true ]]; do
+			# infinite loop here
+		done
+	fi
 }
 
 # takes channel (pwmN) and period (integer in ns) as arg
@@ -271,7 +279,6 @@ config () {
 	fan_startup "$2"
 	fan_initialization 5
 	thermal_monit "soc"
-	fan_run
 }
 
 # run pwm-fan
@@ -279,27 +286,5 @@ start
 trap 'interrupt' SIGINT SIGHUP SIGTERM SIGKILL
 # user may provide custom period (in nanoseconds) as arg to the script
 config pwm0 $1
-end 'Finished without any errors' 0
-
-# # CPU temps to monitor
-# declare -a CpuTemps=(75000 65000 55000 40000 25000 0)
-# # Duty cycle for each CPU temp range
-# declare -a DutyCycles=(39990 6000 3000 2000 1500 0)
-
-# # Main loop to monitor cpu temp and assign duty cycles accordingly
-# while true
-# do
-# 	temp0=$(cat /sys/class/thermal/thermal_zone0/temp)
-# 	# If you changed the length of $CpuTemps and $DutyCycles, then change the following length, too
-# 	for i in 0 1 2 3 4 5; do
-# 		if [ $temp0 -gt ${CpuTemps[$i]} ]; then
-# 			DUTY=${DutyCycles[$i]}
-# 			echo $DUTY > "/sys/class/pwm/pwmchip1/pwm0/duty_cycle";
-# 			# To test the script, uncomment the following:
-# 			#echo "temp: $temp0, target: ${CpuTemps[$i]}, duty: $DUTY"
-# 			break		
-# 		fi
-# 	done
-# 	# Change the following if you want the script to change the fan speed more/less frequently
-# 	sleep 10s;
-# done
+# TODO: allow user to select fancontrol algorithm (fixed table vs dynamic)
+fan_run
