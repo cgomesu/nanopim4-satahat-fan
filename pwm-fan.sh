@@ -8,18 +8,19 @@
 ###########################################################################
 
 start () {
-	echo '##############################################'
+	echo '####################################################'
 	echo '# STARTING PWM-FAN SCRIPT'
-	echo '##############################################'
+	echo '# Date and time: '$(date)
+	echo '####################################################'
 }
 
 # accept message and status as argument
 end () {
 	cleanup
-	echo '##############################################'
+	echo '####################################################'
 	echo '# END OF THE PWM-FAN SCRIPT'
 	echo '# MESSAGE: '$1
-	echo '##############################################'
+	echo '####################################################'
 	exit $2
 }
 
@@ -45,22 +46,24 @@ cache () {
 }
 
 cleanup () {
-	# TODO: stop and free up used pins
+	echo '---- cleaning up ----'
+	unexport_pwmchip1_channel
 	# remove cache files
 	if [[ -d "$CACHE_ROOT" ]]; then
 		rm -rf "$CACHE_ROOT"
 	fi
+	echo '--------------------'
 }
 
 unexport_pwmchip1_channel () {
 	if [[ -d "$CHANNEL_FOLDER" ]]; then
-	    local UNEXPORT='/sys/class/pwm/pwmchip1/unexport'
-	    cache 'unexport'
-	    # TODO: Disable pin first then unexport
-	    local UNEXPORT_SET=$(echo 0 2> "$CACHE" > "$UNEXPORT")
-	    # TODO: Handle unexport errors
-	elif [[ ! -d "$CHANNEL_FOLDER" ]]; then
-		echo '[pwm-fan] It seems channel '$CHANNEL' has already been freed up or is not controlled by pwmchip1.'
+		echo '[pwm-fan] Freeing up the channel '$CHANNEL' controlled by the pwmchip1.'
+		echo 0 > $CHANNEL_FOLDER'enable'
+		sleep 1
+		echo 0 > $PWMCHIP1_FOLDER'unexport'
+		echo '[pwm-fan] Channel '$CHANNEL' was disabled.'
+	else
+		echo '[pwm-fan] There is no channel to disable.'
 	fi
 }
 
@@ -72,20 +75,20 @@ export_pwmchip1_channel () {
 	    if [[ ! -z $(cat "$CACHE") ]]; then
 	    	# on error, parse output
 	    	if [[ $(cat "$CACHE") =~ (P|p)ermission\ denied ]]; then
-	    		echo '[pwm-fan] This user does not have permission to use channel '$CHANNEL
+	    		echo '[pwm-fan] This user does not have permission to use channel '$CHANNEL'.'
 	    		# findout who owns export
 	    		if [[ ! -z $(command -v stat) ]]; then
-	    			echo '[pwm-fan] Export is owned by user: '$(stat -c '%U' "$EXPORT")
-    				echo '[pwm-fan] Export is owned by group: '$(stat -c '%G' "$EXPORT")
+	    			echo '[pwm-fan] Export is owned by user: '$(stat -c '%U' "$EXPORT")'.'
+    				echo '[pwm-fan] Export is owned by group: '$(stat -c '%G' "$EXPORT")'.'
 	    		fi
 	    		local ERR_MSG='User permission error while setting channel.'
 	    	elif [[ $(cat "$CACHE") =~ (D|d)evice\ or\ resource\ busy ]]; then
 	    		echo '[pwm-fan] It seems the pin is already in use. Cannot write to export.'
 	    		local ERR_MSG='pwmchip1 was busy while setting channel.'
 	    	else
-	    		echo '[pwm-fan] There was an unknown error while setting the channel '$CHANNEL
+	    		echo '[pwm-fan] There was an unknown error while setting the channel '$CHANNEL'.'
 	    		if [[ $(cat "$CACHE") =~ \ ([^\:]+)$ ]]; then
-	    			echo '[pwm-fan] Error: '${BASH_REMATCH[1]}
+	    			echo '[pwm-fan] Error: '${BASH_REMATCH[1]}'.'
 	    		fi
 	    		local ERR_MSG='Unknown error while setting channel.'
 	    	fi
@@ -93,7 +96,7 @@ export_pwmchip1_channel () {
 	    fi
 	    sleep 1
 	elif [[ -d "$CHANNEL_FOLDER" ]]; then
-		echo '[pwm-fan] '$CHANNEL' channel is already accessible'
+		echo '[pwm-fan] '$CHANNEL' channel is already accessible.'
 	fi
 }
 
@@ -121,49 +124,45 @@ pwmchip1 () {
 
 set_default () {
 	cache 'set_default_duty_cycle'
-	SET_DUTY_CYCLE=$(echo 0 2> $CACHE > $CHANNEL_FOLDER'duty_cycle')
+	echo 0 2> $CACHE > $CHANNEL_FOLDER'duty_cycle'
 	if [[ ! -z $(cat $CACHE) ]]; then
-		echo 'bad set_duty_cycle'
-		SET_PERIOD=$(echo 1000 > $CHANNEL_FOLDER'period')
-		SET_DUTY_CYCLE=$(echo 0 > $CHANNEL_FOLDER'duty_cycle')
+		# set higher than 0 values to avoid negative ones
+		echo 100 > $CHANNEL_FOLDER'period'
+		echo 10 > $CHANNEL_FOLDER'duty_cycle'
 	fi
 	cache 'set_default_period'
-	SET_PERIOD=$(echo $PERIOD 2> $CACHE > $CHANNEL_FOLDER'period')
+	echo $PERIOD 2> $CACHE > $CHANNEL_FOLDER'period'
 	if [[ ! -z $(cat $CACHE) ]]; then
 		echo '[pwm-fan] The period provided ('$PERIOD') is not acceptable.'
-		echo '[pwm-fan] Trying to lower it by 100ns decrements. This may take a while.'
-		local PERIOD_=$PERIOD
-		local rate=100
-		local decrement=$rate
+		echo '[pwm-fan] Trying to lower it by 100ns decrements. This may take a while...'
+		local decrement=100
+		local rate=$decrement
 		until [[ $PERIOD_ -le 1 ]]; do
-			local PERIOD_=$(($PERIOD-$decrement))
+			local PERIOD_=$((PERIOD-rate))
+			# if period goes too low, catch it and set to 1
 			if [[ $PERIOD_ -lt 1 ]]; then
 				local PERIOD_=1
 			fi
-			echo $PERIOD_
 			> $CACHE
-			SET_PERIOD=$(echo $PERIOD_ 2> $CACHE > $CHANNEL_FOLDER'period')
-			if [[ -z $CACHE ]]; then
+			echo $PERIOD_ 2> $CACHE > $CHANNEL_FOLDER'period'
+			if [[ -z $(cat $CACHE) ]]; then
 				break
 			fi
-			local decrement=$((decrement+$rate))
+			local rate=$((rate+decrement))
 		done
 		PERIOD=$PERIOD_
-		if [[ $PERIOD -le 50 ]]; then
-			end 'Unable to set an appropriate value for the period' 1
+		if [[ $PERIOD -le 100 ]]; then
+			end 'Unable to set an appropriate value for the period.' 1
 		fi
-		echo '[pwm-fan] Current period is now '$PERIOD
 	fi
-	SET_POLARITY=$(echo 'normal' > $CHANNEL_FOLDER'polarity')
-	READ_POLARITY=$(cat $CHANNEL_FOLDER'polarity')
-	READ_PERIOD=$(cat $CHANNEL_FOLDER'period')
-	READ_DUTY_CYCLE=$(cat $CHANNEL_FOLDER'duty_cycle')
-	echo '[pwm-fan] Default polarity was set to: '$READ_POLARITY
-	echo '[pwm-fan] Default period was set to: '$READ_PERIOD' ns'
-	echo '[pwm-fan] Default duty cycle was set to: '$READ_DUTY_CYCLE' ns of active time'
+	# set polarity
+	echo 'normal' > $CHANNEL_FOLDER'polarity'
+	# let user know about default values
+	echo '[pwm-fan] Default polarity set to '$(cat $CHANNEL_FOLDER'polarity')'.'
+	echo '[pwm-fan] Default period set to '$(cat $CHANNEL_FOLDER'period')' ns.'
+	echo '[pwm-fan] Default duty cycle set to '$(cat $CHANNEL_FOLDER'duty_cycle')' ns of active time.'
 }
 
-# TODO: need to finish this function
 fan_startup () {
 	PERIOD="$1"
 	if [[ -z $PERIOD ]]; then
@@ -173,19 +172,18 @@ fan_startup () {
 		echo '[pwm-fan] The period must be an integer greater than 0.'
 		end 'Period is not integer' 1
 	fi
-	while [[ ! $CONFIG_READY && -d "$CHANNEL_FOLDER" ]]; do
-		READ_ENABLE=$(cat $CHANNEL_FOLDER'enable')
-		if [[ $READ_ENABLE -eq 0 ]]; then
+	while [[ -d "$CHANNEL_FOLDER" ]]; do
+		if [[ $(cat $CHANNEL_FOLDER'enable') -eq 0 ]]; then
 			# fan is not enabled
 			set_default
-			CONFIG_READY=1
-		elif [[ $READ_ENABLE -eq 0 ]]; then
+			break
+		elif [[ $(cat $CHANNEL_FOLDER'enable') -eq 0 ]]; then
 			# fan is enabled
 			echo '[pwm-fan] The fan is already enabled. Will disable it.'
-			SET_ENABLE=$(echo 0 > $CHANNEL_FOLDER'enable')
+			echo 0 > $CHANNEL_FOLDER'enable'
 			sleep 1
 			set_default
-			CONFIG_READY=1
+			break
 		else
 			echo '[pwm-fan] Unable to read the fan enable status.'
 			end 'Bad fan status' 1
@@ -193,11 +191,38 @@ fan_startup () {
 	done
 }
 
+# takes time (in seconds) to run at full speed
+fan_initialization () {
+	local TIME=$1
+	if [[ -z "$TIME" ]]; then
+		local TIME=10
+	fi
+	cache 'test_fan'
+	local READ_MAX_DUTY_CYCLE=$(cat $CHANNEL_FOLDER'period')
+	echo $READ_MAX_DUTY_CYCLE 2> $CACHE > $CHANNEL_FOLDER'duty_cycle'
+	# on error, try setting duty_cycle to a lower value
+	if [[ ! -z $(cat $CACHE) ]]; then
+		local READ_MAX_DUTY_CYCLE=$(cat $CHANNEL_FOLDER'period')-100
+		> $CACHE
+		echo $READ_MAX_DUTY_CYCLE 2> $CACHE > $CHANNEL_FOLDER'duty_cycle'
+		if [[ ! -z $(cat $CACHE) ]]; then
+			end 'Unable to set max duty_cycle.' 1
+		fi
+	fi
+	echo '[pwm-fan] Running fan at full speed for the next '$TIME' seconds...'
+	echo 1 > $CHANNEL_FOLDER'enable'
+	sleep $TIME
+	# keep it running at half period
+	echo $((READ_MAX_DUTY_CYCLE/2)) > $CHANNEL_FOLDER'duty_cycle'
+	echo '[pwm-fan] Initialization done. Duty cycle at 25% now: '$((READ_MAX_DUTY_CYCLE/4))' ns.'
+}
+
 # takes channel (pwmN) and period (integer in ns) as arg
 config () {
 	pwmchip1 "$1"
 	export_pwmchip1_channel
 	fan_startup "$2"
+	fan_initialization 5
 }
 
 # run pwm-fan
@@ -206,19 +231,6 @@ trap 'interrupt' SIGINT SIGHUP SIGTERM SIGKILL
 # user may provide custom period as first arg
 config pwm0 $1
 end 'Finished without any errors' 0
-
-
-# Set default period (40000ns = 25kHz)
-echo 40000 > /sys/class/pwm/pwmchip1/pwm0/period
-
-# The default polarity is inversed. Set it to 'normal' instead.
-echo normal > /sys/class/pwm/pwmchip1/pwm0/polarity
-
-# Run fan at full speed for 10s when the script starts and keep running at low speed
-echo 39990 > /sys/class/pwm/pwmchip1/pwm0/duty_cycle
-echo 1 > /sys/class/pwm/pwmchip1/pwm0/enable
-sleep 10
-echo 1500 > /sys/class/pwm/pwmchip1/pwm0/duty_cycle
 
 # CPU temps to monitor
 declare -a CpuTemps=(75000 65000 55000 40000 25000 0)
