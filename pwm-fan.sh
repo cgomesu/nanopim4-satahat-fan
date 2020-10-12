@@ -231,19 +231,16 @@ thermal_monit () {
 	fi
 	local THERMAL_FOLDER='/sys/class/thermal/'
 	if [[ -d $THERMAL_FOLDER ]]; then
-		local ZONES=('thermal_zone0/' 'thermal_zone1/' 'thermal_zone2/' 'thermal_zone3/')
-		for zone in ${ZONES[@]}; do
-			if [[ -d $THERMAL_FOLDER$zone ]]; then
-				if [[ $(cat $THERMAL_FOLDER$zone'type') =~ $MONIT_DEVICE ]]; then
-					# temp in millidegree Celsius
-					TEMP_FILE=$THERMAL_FOLDER$zone'temp'
-					TEMP=$(cat $TEMP_FILE)
-					echo '[pwm-fan] Found the '$MONIT_DEVICE' temperature at '$TEMP_FILE
-					echo '[pwm-fan] Current '$MONIT_DEVICE' temp is: '$((TEMP/1000))' Celsius'
-					echo '[pwm-fan] Setting fan to monitor the '$MONIT_DEVICE' temperature.'
-					THERMAL_STATUS=1
-					return
-				fi
+		for dir in $THERMAL_FOLDER'thermal_zone'*; do
+			if [[ $(cat $dir'/type') =~ $MONIT_DEVICE ]]; then
+				# temp in millidegree Celsius
+				TEMP_FILE=$THERMAL_FOLDER$zone'temp'
+				TEMP=$(cat $TEMP_FILE)
+				echo '[pwm-fan] Found the '$MONIT_DEVICE' temperature at '$TEMP_FILE
+				echo '[pwm-fan] Current '$MONIT_DEVICE' temp is: '$((TEMP/1000))' Celsius'
+				echo '[pwm-fan] Setting fan to monitor the '$MONIT_DEVICE' temperature.'
+				THERMAL_STATUS=1
+				return
 			fi
 		done
 	else
