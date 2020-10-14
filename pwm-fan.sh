@@ -47,7 +47,7 @@ config () {
 	thermal_monit "soc"
 }
 
-# accept message and status as argument
+# takes message and status as argument
 end () {
 	cleanup
 	echo '####################################################'
@@ -90,7 +90,6 @@ export_pwmchip_channel () {
 	fi
 }
 
-
 # takes time (in seconds) to run at full speed
 fan_initialization () {
 	local TIME=$1
@@ -130,35 +129,32 @@ fan_run () {
 
 fan_run_max () {
 	echo '[pwm-fan] Running fan at full speed until stopped (Ctrl+C or kill '$$')...'
-	echo $MAX_DUTY_CYCLE > $CHANNEL_FOLDER'duty_cycle'
-	cache 'fan_run'
-	while [[ -z $(cat $CACHE) ]]; do
-		if [[ ! $(cat $CHANNEL_FOLDER'duty_cycle') -eq $MAX_DUTY_CYCLE ]]; then
-			echo $MAX_DUTY_CYCLE 2> $CACHE > $CHANNEL_FOLDER'duty_cycle'
-		fi
-		sleep 60
+	while true; do
+		echo $MAX_DUTY_CYCLE > $CHANNEL_FOLDER'duty_cycle'
+		# run every so often to make sure it is max
+		sleep 120
 	done
-	end 'Got an error while trying to reset the duty_cycle: '"$(cat $cache)" 1
 }
 
 fan_run_thermal () {
 	echo '[pwm-fan] Running fan in temp monitor mode until stopped (Ctrl+C or kill '$$')...'
-	THERMAL_ABS_THRESH=(25 35 50 65 75)
-	THERMAL_DELTA_THRESH=(5 15 25)
+	THERMAL_ABS_THRESH=(25 75)
 	DC_ABS_THRESH=($((MAX_DUTY_CYCLE/5)) $MAX_DUTY_CYCLE)
-	DC_DELTA_MULTIPLIER=(1 2 3)
+	# THERMAL_DELTA_THRESH=(5 15 25)
+	# DC_DELTA_MULTIPLIER=(1 2 3)
 	TEMPS=()
-	# loop x max_temps gives an approximate time range of the stored temps
-	MAX_TEMPS=12 #number of temps to keep in TEMPS array
+	# loop*max_temps gives an approximate time range of the stored temps
+	MAX_TEMPS=12 #number of temperatures to keep in the TEMPS array
 	LOOP_TIME=10 #in seconds, lower means higher resolution
 	while true ; do
 		TEMPS+=($(thermal_meter))
 		if [[ ${#TEMPS[@]} -gt $MAX_TEMPS ]]; then
-			echo 'unsetting oldest temp read'
 			TEMPS=(${TEMPS[@]:1})
 		fi
+		# TODO: Remove debugging messages when done
 		if [[ ${TEMPS[-1]} -le ${THERMAL_ABS_THRESH[0]} ]]; then
 			echo 'set duty cycle to MIN.'
+			# echo ${THERMAL_ABS_THRESH[0]} > $CHANNEL_FOLDER'duty_cycle'
 		elif [[ ${TEMPS[-1]} -ge ${THERMAL_ABS_THRESH[-1]} ]]; then
 			echo 'set duty cycle to MAX.'
 		elif [[ ${#TEMPS[@]} -eq 1 ]]; then
@@ -167,24 +163,28 @@ fan_run_thermal () {
 			# args: x, x0, L, a, b (k=a/b)
 			if [[ $(function_logistic ${TEMPS[-1]} 40 ${DC_ABS_THRESH[-1]} 1 10) -lt ${DC_ABS_THRESH[0]} ]]; then
 				echo 'set duty cycle to '${DC_ABS_THRESH[0]}
+				# echo ${DC_ABS_THRESH[0]} > $CHANNEL_FOLDER'duty_cycle'
 			elif [[ $(function_logistic ${TEMPS[-1]} 40 ${DC_ABS_THRESH[-1]} 1 10) -gt ${DC_ABS_THRESH[-1]} ]]; then
 				echo 'set duty cycle to '${DC_ABS_THRESH[-1]}
+				# echo ${DC_ABS_THRESH[-1]} > $CHANNEL_FOLDER'duty_cycle'
 			else
 				echo 'set duty cycle to '$(function_logistic ${TEMPS[-1]} 40 ${DC_ABS_THRESH[-1]} 1 10)
+				# echo ${DC_ABS_THRESH[0]} > $CHANNEL_FOLDER'duty_cycle'
 			fi
 		elif [[ ${#TEMPS[@]} -gt 1 ]]; then
 			echo 'multiple measurements'
 			echo 'set duty cycle according to bounded function w/ dc multiplier and moving midpoint'
-			function_logistic ${TEMPS[-1]} 40 ${DC_ABS_THRESH[-1]} 1 10
+			# args: x, x0, L, a, b (k=a/b)
 			if [[ $(function_logistic ${TEMPS[-1]} 40 ${DC_ABS_THRESH[-1]} 1 10) -lt ${DC_ABS_THRESH[0]} ]]; then
 				echo 'set duty cycle to '${DC_ABS_THRESH[0]}
+				# echo ${DC_ABS_THRESH[0]} > $CHANNEL_FOLDER'duty_cycle'
 			elif [[ $(function_logistic ${TEMPS[-1]} 40 ${DC_ABS_THRESH[-1]} 1 10) -gt ${DC_ABS_THRESH[-1]} ]]; then
 				echo 'set duty cycle to '${DC_ABS_THRESH[-1]}
+				# echo ${DC_ABS_THRESH[-1]} > $CHANNEL_FOLDER'duty_cycle'
 			else
 				echo 'set duty cycle to '$(function_logistic ${TEMPS[-1]} 40 ${DC_ABS_THRESH[-1]} 1 10)
+				# echo ${DC_ABS_THRESH[0]} > $CHANNEL_FOLDER'duty_cycle'
 			fi
-		else
-			echo 'no measurement has been made yet'
 		fi
 		sleep $LOOP_TIME
 	done
@@ -221,7 +221,8 @@ function_logistic () {
         local x=$1
         local x0=$2
         local L=$3
-        local a=$4 #in which a=1/k
+        # k=a/b
+        local a=$4
         local b=$5
         local equation="output=$L/(1+e(-($a/$b)*($x-$x0)));scale=0;output/1"
         local result=$(echo $equation | bc -lq)
