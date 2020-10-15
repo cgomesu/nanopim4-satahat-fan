@@ -3,7 +3,9 @@ A fan control script in Bash for the [**2-pin PH2.0 12v fan connector of the Nan
 
 Many of the variables use in this fan controller can be modified directly from the CLI, such as setting custom temperature thresholds (`-t`, `-T`) or disabling temperature monitoring altogether (`-f`). For a more detailed description, see [**Usage**](#usage).
 
-There's arguably more code here than necessary to run a fan controller. This was a hobbie of mine (I wanted to revisit the first version which used a fixed table to set speeds) and an opportunity to learn more about Bash.
+There's arguably more code here than necessary to run a fan controller. This was a hobbie of mine (I wanted to revisit the first version which used a fixed table to set speed) and an opportunity to learn more about Bash and the sysfs interface.  
+
+If you have any issues or suggestions, open an issue or [send me an e-mail](mailto:me@cgomesu.com).
 
 
 # Requisites
@@ -11,9 +13,9 @@ There's arguably more code here than necessary to run a fan controller. This was
 - Access to the [pwm sysfs interface](https://www.kernel.org/doc/Documentation/pwm.txt);
 - Standard Linux commands.
 
-You don't need to check any of this manually. The script will automatically check for everything it needs to run and will let you know if there's any errors or missing access to important commands.
+You don't need to check any of this manually. The script will automatically check for everything it needs to run and will let you know if there's any errors or missing access to important commands.  
 
-For reference, this script was originally developed with the following hardware:
+The controller was developed with Armbian OS but you should be able to run it on any other Linux distro for the NanoPi M4. For reference, this script was originally developed with the following hardware:
 -  NanoPi-M4 v2
 -  M4 SATA hat
 -  Generic 12V (0.2A) fan
@@ -44,6 +46,7 @@ chmod +x pwm-fan.sh
 # Check for any error messages 
 # When done, press Ctrl+C after to send a SIGINT and stop the script
 ```
+
 
 # Usage
 ```
@@ -86,6 +89,7 @@ Repo: https://github.com/cgomesu/nanopim4-satahat-fan
 This is free. There is NO WARRANTY. Use at your own risk.
 
 ```
+
 
 # Run in the Background
 ```
