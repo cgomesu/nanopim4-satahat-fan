@@ -1,11 +1,11 @@
 #!/bin/bash
 
-############################################################################
-# Bash script to control the NanoPi M4 SATA hat fan via the sysfs interface
-############################################################################
+###############################################################################
+# Bash script to control the NanoPi M4 SATA hat 12v fan via the sysfs interface
+###############################################################################
 # Official pwm sysfs doc:
 # https://www.kernel.org/doc/Documentation/pwm.txt
-###########################################################################
+###############################################################################
 
 # takes a name as argument
 cache () {
@@ -138,13 +138,14 @@ fan_run_max () {
 
 fan_run_thermal () {
 	echo '[pwm-fan] Running fan in temp monitor mode until stopped (Ctrl+C or kill '$$')...'
-	THERMAL_ABS_THRESH=(25 75)
-	DC_ABS_THRESH=($((MAX_DUTY_CYCLE/5)) $MAX_DUTY_CYCLE)
+	THERMAL_ABS_THRESH=(25 35 50 65 75)
+	# to prevent from stop spinning, never go lower than 25% after the startup
+	DC_ABS_THRESH=($((MAX_DUTY_CYCLE/4)) $((MAX_DUTY_CYCLE/2)) $(((3*MAX_DUTY_CYCLE)/4)) $MAX_DUTY_CYCLE)
 	# THERMAL_DELTA_THRESH=(5 15 25)
 	# DC_DELTA_MULTIPLIER=(1 2 3)
 	TEMPS=()
 	# loop*max_temps gives an approximate time range of the stored temps
-	MAX_TEMPS=12 #number of temperatures to keep in the TEMPS array
+	MAX_TEMPS=6 #number of temperatures to keep in the TEMPS array
 	LOOP_TIME=10 #in seconds, lower means higher resolution
 	while true ; do
 		TEMPS+=($(thermal_meter))
@@ -153,38 +154,33 @@ fan_run_thermal () {
 		fi
 		# TODO: Remove debugging messages when done
 		if [[ ${TEMPS[-1]} -le ${THERMAL_ABS_THRESH[0]} ]]; then
-			echo 'set duty cycle to MIN.'
-			# echo ${THERMAL_ABS_THRESH[0]} > $CHANNEL_FOLDER'duty_cycle'
+			echo 'set duty cycle to MIN DC: '${DC_ABS_THRESH[0]}
+			echo ${DC_ABS_THRESH[0]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
 		elif [[ ${TEMPS[-1]} -ge ${THERMAL_ABS_THRESH[-1]} ]]; then
-			echo 'set duty cycle to MAX.'
-		elif [[ ${#TEMPS[@]} -eq 1 ]]; then
-			echo 'single measurement'
-			echo 'set duty cycle according to bounded function wo/ delta compensation'
-			# args: x, x0, L, a, b (k=a/b)
-			if [[ $(function_logistic ${TEMPS[-1]} 40 ${DC_ABS_THRESH[-1]} 1 10) -lt ${DC_ABS_THRESH[0]} ]]; then
-				echo 'set duty cycle to '${DC_ABS_THRESH[0]}
-				# echo ${DC_ABS_THRESH[0]} > $CHANNEL_FOLDER'duty_cycle'
-			elif [[ $(function_logistic ${TEMPS[-1]} 40 ${DC_ABS_THRESH[-1]} 1 10) -gt ${DC_ABS_THRESH[-1]} ]]; then
-				echo 'set duty cycle to '${DC_ABS_THRESH[-1]}
-				# echo ${DC_ABS_THRESH[-1]} > $CHANNEL_FOLDER'duty_cycle'
-			else
-				echo 'set duty cycle to '$(function_logistic ${TEMPS[-1]} 40 ${DC_ABS_THRESH[-1]} 1 10)
-				# echo ${DC_ABS_THRESH[0]} > $CHANNEL_FOLDER'duty_cycle'
-			fi
+			echo 'set duty cycle to MIN DC: '${DC_ABS_THRESH[-1]}
+			echo ${DC_ABS_THRESH[-1]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
 		elif [[ ${#TEMPS[@]} -gt 1 ]]; then
-			echo 'multiple measurements'
-			echo 'set duty cycle according to bounded function w/ dc multiplier and moving midpoint'
+			# compute mean temp
+			TEMPS_SUM=0
+			for TEMP in ${TEMPS[@]}; do
+	                let TEMPS_SUM+=$TEMP
+	        done
+	        MEAN_TEMP=$((TEMPS_SUM/${#TEMPS[@]}))
+			# moving mid-point based on inversed mean
+			X0=$(($MEAN_TEMP-100))
 			# args: x, x0, L, a, b (k=a/b)
-			if [[ $(function_logistic ${TEMPS[-1]} 40 ${DC_ABS_THRESH[-1]} 1 10) -lt ${DC_ABS_THRESH[0]} ]]; then
+			MODEL=$(function_logistic ${TEMPS[-1]} ${X0#-} ${DC_ABS_THRESH[-1]} 1 10)
+			if [[ $MODEL -lt ${DC_ABS_THRESH[0]} ]]; then
 				echo 'set duty cycle to '${DC_ABS_THRESH[0]}
-				# echo ${DC_ABS_THRESH[0]} > $CHANNEL_FOLDER'duty_cycle'
-			elif [[ $(function_logistic ${TEMPS[-1]} 40 ${DC_ABS_THRESH[-1]} 1 10) -gt ${DC_ABS_THRESH[-1]} ]]; then
+				echo ${DC_ABS_THRESH[0]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
+			elif [[ $MODEL -gt ${DC_ABS_THRESH[-1]} ]]; then
 				echo 'set duty cycle to '${DC_ABS_THRESH[-1]}
-				# echo ${DC_ABS_THRESH[-1]} > $CHANNEL_FOLDER'duty_cycle'
+				echo ${DC_ABS_THRESH[-1]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
 			else
-				echo 'set duty cycle to '$(function_logistic ${TEMPS[-1]} 40 ${DC_ABS_THRESH[-1]} 1 10)
-				# echo ${DC_ABS_THRESH[0]} > $CHANNEL_FOLDER'duty_cycle'
+				echo 'set duty cycle to '$MODEL
+				echo $MODEL 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
 			fi
+		# let first run do nothing
 		fi
 		sleep $LOOP_TIME
 	done
@@ -300,30 +296,10 @@ start () {
 	echo '####################################################'
 }
 
-thermal_control () {
-        TEMPS=()
-        while [[ ${#TEMPS[@]} -le 1000 ]]; do
-                TEMPS+=($(thermometer))
-        done
-        total=0
-        for temp in ${TEMPS[@]}; do
-                let total+=$temp
-        done
-        mean=$((total/${#TEMPS[@]}))
-        dev=0
-        for temp in ${TEMPS[@]}; do
-                let dev+=$(((temp-mean)*(temp-mean)))
-        done
-        var=$(echo $((dev/(${#TEMPS[@]}-1))))
-        std=$(echo "sqrt($var)" | bc)
-        echo 'mean= '$mean
-        echo 'SD= '$std
-}
-
 thermal_meter () {
 	if [[ -f $TEMP_FILE ]]; then
 		local TEMP=$(cat $TEMP_FILE 2> /dev/null)
-		# TEMP is in millidegrees
+		# TEMP is in millidegrees, so convert to degrees
 		echo $((TEMP/1000))
 	fi
 }
@@ -338,7 +314,6 @@ thermal_monit () {
 	if [[ -d $THERMAL_FOLDER ]]; then
 		for dir in $THERMAL_FOLDER'thermal_zone'*; do
 			if [[ $(cat $dir'/type') =~ $MONIT_DEVICE && -f $dir'/temp' ]]; then
-				# temp in millidegree Celsius
 				TEMP_FILE=$dir'/temp'
 				echo '[pwm-fan] Found the '$MONIT_DEVICE' temperature at '$TEMP_FILE
 				echo '[pwm-fan] Current '$MONIT_DEVICE' temp is: '$(($(thermal_meter)))' Celsius'
