@@ -91,7 +91,17 @@ This is free. There is NO WARRANTY. Use at your own risk.
 ```
 
 
+# Examples
+- Run with a custom period and min/max temperature thresholds
+
+```
+./pwm-fan.sh -p 25000000 -t 30 -T 60
+```
+
+
 # Run in the Background
+If you're running options different than the default values, first edit the `pwm-fan.service` file to include those options in the `ExecStart=` row. 
+
 ```
 # Copy the pwm-fan.service file to your systemd folder
 cp /opt/nanopim4-satahat-fan/pwm-fan.service /lib/systemd/system/
