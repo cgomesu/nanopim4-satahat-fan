@@ -371,7 +371,6 @@ usage() {
     echo '  Defaults have been tested and optimized for the following hardware:'
     echo '    -  NanoPi-M4 v2'
     echo '    -  M4 SATA hat'
-    echo '    -  Generic 12V (0.2A) fan'
     echo '    -  Fan 12V (.08A)'
     echo '  And software:'
     echo '    -  Kernel: Linux 4.4.231-rk3399'
