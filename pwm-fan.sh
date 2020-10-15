@@ -7,7 +7,6 @@
 # https://www.kernel.org/doc/Documentation/pwm.txt
 ###############################################################################
 
-# takes a name as argument
 cache () {
 	if [[ -z "$1" ]]; then
 		echo '[pwm-fan] Cache file was not specified. Assuming generic.'
@@ -28,23 +27,36 @@ cache () {
 	fi
 }
 
+check_requisites () {
+	local REQUISITES=('bc' 'cat' 'echo' 'mkdir' 'touch' 'trap' 'sleep')
+	echo '[pwm-fan] Checking requisites: '${REQUISITES[@]}
+	for cmd in ${REQUISITES[@]}; do
+		if [[ -z $(command -v $cmd) ]]; then
+			echo '[pwm-fan] The following program is not installed or cannot be found in this users $PATH: '$cmd
+			echo '[pwm-fan] Fix it and try again.'
+			end "Missing important packages. Cannot continue." 1
+		fi
+	done
+	echo '[pwm-fan] All commands are accesible.'
+}
+
 cleanup () {
 	echo '---- cleaning up ----'
+	# disable the channel
 	unexport_pwmchip_channel
-	# remove cache files
+	# clean cache files
 	if [[ -d "$CACHE_ROOT" ]]; then
 		rm -rf "$CACHE_ROOT"
 	fi
 	echo '--------------------'
 }
 
-# takes channel (pwmN) and period (integer in ns) as arg
 config () {
-	pwmchip "$1" "$2"
+	pwmchip
 	export_pwmchip_channel
-	fan_startup "$3"
-	fan_initialization 5 #time in seconds for initial run at full speed
-	thermal_monit "soc"
+	fan_startup
+	fan_initialization
+	thermal_monit
 }
 
 # takes message and status as argument
@@ -66,7 +78,6 @@ export_pwmchip_channel () {
 	    	# on error, parse output
 	    	if [[ $(cat "$CACHE") =~ (P|p)ermission\ denied ]]; then
 	    		echo '[pwm-fan] This user does not have permission to use channel '$CHANNEL'.'
-	    		# findout who owns export
 	    		if [[ ! -z $(command -v stat) ]]; then
 	    			echo '[pwm-fan] Export is owned by user: '$(stat -c '%U' "$EXPORT")'.'
     				echo '[pwm-fan] Export is owned by group: '$(stat -c '%G' "$EXPORT")'.'
@@ -90,11 +101,9 @@ export_pwmchip_channel () {
 	fi
 }
 
-# takes time (in seconds) to run at full speed
 fan_initialization () {
-	local TIME=$1
-	if [[ -z "$TIME" ]]; then
-		local TIME=10
+	if [[ -z "$TIME_STARTUP" ]]; then
+		TIME_STARTUP=60
 	fi
 	cache 'test_fan'
 	local READ_MAX_DUTY_CYCLE=$(cat $CHANNEL_FOLDER'period')
@@ -108,12 +117,10 @@ fan_initialization () {
 			end 'Unable to set max duty_cycle.' 1
 		fi
 	fi
-	# set global max duty cycle
 	MAX_DUTY_CYCLE=$READ_MAX_DUTY_CYCLE
-	echo '[pwm-fan] Running fan at full speed for the next '$TIME' seconds...'
+	echo '[pwm-fan] Running fan at full speed for the next '$TIME_STARTUP' seconds...'
 	echo 1 > $CHANNEL_FOLDER'enable'
-	sleep $TIME
-	# keep it running at 25% period
+	sleep $TIME_STARTUP
 	echo $((MAX_DUTY_CYCLE/2)) > $CHANNEL_FOLDER'duty_cycle'
 	echo '[pwm-fan] Initialization done. Duty cycle at 50% now: '$((MAX_DUTY_CYCLE/2))' ns.'
 	sleep 1
@@ -131,69 +138,69 @@ fan_run_max () {
 	echo '[pwm-fan] Running fan at full speed until stopped (Ctrl+C or kill '$$')...'
 	while true; do
 		echo $MAX_DUTY_CYCLE > $CHANNEL_FOLDER'duty_cycle'
-		# run every so often to make sure it is max
+		# run every so often to make sure it is maxed
 		sleep 120
 	done
 }
 
 fan_run_thermal () {
 	echo '[pwm-fan] Running fan in temp monitor mode until stopped (Ctrl+C or kill '$$')...'
-	THERMAL_ABS_THRESH=(25 35 50 65 75)
-	# to prevent from stop spinning, never go lower than 25% after the startup
-	DC_ABS_THRESH=($((MAX_DUTY_CYCLE/4)) $((MAX_DUTY_CYCLE/2)) $(((3*MAX_DUTY_CYCLE)/4)) $MAX_DUTY_CYCLE)
-	# THERMAL_DELTA_THRESH=(5 15 25)
-	# DC_DELTA_MULTIPLIER=(1 2 3)
+	if [[ -z $THERMAL_ABS_THRESH_LOW ]]; then
+		THERMAL_ABS_THRESH_LOW=25
+	fi
+	if [[ -z $THERMAL_ABS_THRESH_HIGH ]]; then
+		THERMAL_ABS_THRESH_HIGH=75
+	fi
+	THERMAL_ABS_THRESH=($THERMAL_ABS_THRESH_LOW $THERMAL_ABS_THRESH_HIGH)
+	if [[ -z $DC_PERCENT_MIN ]]; then
+		DC_PERCENT_MIN=25
+	fi
+	if [[ -z $DC_PERCENT_MAX ]]; then
+		DC_PERCENT_MAX=100
+	fi
+	DC_ABS_THRESH=($(((DC_PERCENT_MIN*MAX_DUTY_CYCLE)/100)) $(((DC_PERCENT_MAX*MAX_DUTY_CYCLE)/100)))
+	if [[ -z $TEMPS_SIZE ]]; then
+		TEMPS_SIZE=6
+	fi
+	if [[ -z $TIME_LOOP ]]; then
+		TIME_LOOP=10
+	fi
 	TEMPS=()
-	# loop*max_temps gives an approximate time range of the stored temps
-	MAX_TEMPS=6 #number of temperatures to keep in the TEMPS array
-	LOOP_TIME=10 #in seconds, lower means higher resolution
-	while true ; do
+	while [[ true ]]; do
 		TEMPS+=($(thermal_meter))
-		if [[ ${#TEMPS[@]} -gt $MAX_TEMPS ]]; then
+		if [[ ${#TEMPS[@]} -gt $TEMPS_SIZE ]]; then
 			TEMPS=(${TEMPS[@]:1})
 		fi
-		# TODO: Remove debugging messages when done
 		if [[ ${TEMPS[-1]} -le ${THERMAL_ABS_THRESH[0]} ]]; then
-			echo 'set duty cycle to MIN DC: '${DC_ABS_THRESH[0]}
 			echo ${DC_ABS_THRESH[0]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
 		elif [[ ${TEMPS[-1]} -ge ${THERMAL_ABS_THRESH[-1]} ]]; then
-			echo 'set duty cycle to MIN DC: '${DC_ABS_THRESH[-1]}
 			echo ${DC_ABS_THRESH[-1]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
 		elif [[ ${#TEMPS[@]} -gt 1 ]]; then
-			# compute mean temp
 			TEMPS_SUM=0
 			for TEMP in ${TEMPS[@]}; do
-	                let TEMPS_SUM+=$TEMP
-	        done
-	        MEAN_TEMP=$((TEMPS_SUM/${#TEMPS[@]}))
-			# moving mid-point based on inversed mean
-			X0=$(($MEAN_TEMP-100))
+				let TEMPS_SUM+=$TEMP
+			done
+			# moving mid-point 
+			MEAN_TEMP=$((TEMPS_SUM/${#TEMPS[@]}))
+			DEV_MEAN_CRITICAL=$((MEAN_TEMP-100))
+			X0=${DEV_MEAN_CRITICAL#-}
 			# args: x, x0, L, a, b (k=a/b)
-			MODEL=$(function_logistic ${TEMPS[-1]} ${X0#-} ${DC_ABS_THRESH[-1]} 1 10)
+			MODEL=$(function_logistic ${TEMPS[-1]} $X0 ${DC_ABS_THRESH[-1]} 1 10)
 			if [[ $MODEL -lt ${DC_ABS_THRESH[0]} ]]; then
-				echo 'set duty cycle to '${DC_ABS_THRESH[0]}
 				echo ${DC_ABS_THRESH[0]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
 			elif [[ $MODEL -gt ${DC_ABS_THRESH[-1]} ]]; then
-				echo 'set duty cycle to '${DC_ABS_THRESH[-1]}
 				echo ${DC_ABS_THRESH[-1]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
 			else
-				echo 'set duty cycle to '$MODEL
 				echo $MODEL 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
 			fi
-		# let first run do nothing
 		fi
-		sleep $LOOP_TIME
+		sleep $TIME_LOOP
 	done
 }
 
 fan_startup () {
-	PERIOD="$1"
 	if [[ -z $PERIOD ]]; then
-		# default period is 30000000 nanoseconds 30kHz
 		PERIOD=30000000
-	elif [[ ! $PERIOD =~ ^[0-9]*$ ]]; then
-		echo '[pwm-fan] The period must be an integer greater than 0.'
-		end 'Period is not integer' 1
 	fi
 	while [[ -d "$CHANNEL_FOLDER" ]]; do
 		if [[ $(cat $CHANNEL_FOLDER'enable') -eq 0 ]]; then
@@ -230,11 +237,8 @@ interrupt () {
 	end 'Received a signal to stop the script.' 0
 }
 
-# takes chip and channel as arg
 pwmchip () {
-	PWMCHIP=$1
 	if [[ -z $PWMCHIP ]]; then
-		# if no arg, assume 1
 		PWMCHIP='pwmchip1'
 	fi
 	PWMCHIP_FOLDER='/sys/class/pwm/'$PWMCHIP'/'
@@ -244,10 +248,7 @@ pwmchip () {
 	fi
 	echo '[pwm-fan] Working with the sysfs interface for the '$PWMCHIP'.'
 	echo '[pwm-fan] For reference, your '$PWMCHIP' supports '$(cat $PWMCHIP_FOLDER'npwm')' channel(s).'
-	# set channel for the pwmchip
-	CHANNEL="$2"
 	if [[ -z $CHANNEL ]]; then
-		# if no arg provided, assume ch 0
 		CHANNEL='pwm0'
 	fi
 	CHANNEL_FOLDER="$PWMCHIP_FOLDER""$CHANNEL"'/'
@@ -283,10 +284,9 @@ set_default () {
 		fi
 	fi
 	echo 'normal' > $CHANNEL_FOLDER'polarity'
-	# let user know about default values
-	echo '[pwm-fan] Default polarity set to '$(cat $CHANNEL_FOLDER'polarity')'.'
-	echo '[pwm-fan] Default period set to '$(cat $CHANNEL_FOLDER'period')' ns.'
-	echo '[pwm-fan] Default duty cycle set to '$(cat $CHANNEL_FOLDER'duty_cycle')' ns of active time.'
+	echo '[pwm-fan] Default polarity: '$(cat $CHANNEL_FOLDER'polarity')
+	echo '[pwm-fan] Default period: '$(cat $CHANNEL_FOLDER'period')' ns'
+	echo '[pwm-fan] Default duty cycle: '$(cat $CHANNEL_FOLDER'duty_cycle')' ns'
 }
 
 start () {
@@ -294,6 +294,7 @@ start () {
 	echo '# STARTING PWM-FAN SCRIPT'
 	echo '# Date and time: '$(date)
 	echo '####################################################'
+	check_requisites
 }
 
 thermal_meter () {
@@ -305,13 +306,11 @@ thermal_meter () {
 }
 
 thermal_monit () {
-	local MONIT_DEVICE=$1
 	if [[ -z $MONIT_DEVICE ]]; then
-		# assume soc
-		local MONIT_DEVICE='soc'
+		MONIT_DEVICE='soc'
 	fi
 	local THERMAL_FOLDER='/sys/class/thermal/'
-	if [[ -d $THERMAL_FOLDER ]]; then
+	if [[ -d $THERMAL_FOLDER && -z $SKIP_THERMAL ]]; then
 		for dir in $THERMAL_FOLDER'thermal_zone'*; do
 			if [[ $(cat $dir'/type') =~ $MONIT_DEVICE && -f $dir'/temp' ]]; then
 				TEMP_FILE=$dir'/temp'
@@ -324,7 +323,7 @@ thermal_monit () {
 		done
 		echo '[pwm-fan] Did not find the temperature for the device type: '$MONIT_DEVICE
 	else
-		echo '[pwm-fan] Sys interface for the thermal zones cannot be found at '$THERMAL_FOLDER
+		echo '[pwm-fan] -f mode enabled or the the thermal zone cannot be found at '$THERMAL_FOLDER
 	fi
 	echo '[pwm-fan] Setting fan to operate independent of the '$MONIT_DEVICE' temperature.'
 	THERMAL_STATUS=0
@@ -347,11 +346,140 @@ unexport_pwmchip_channel () {
 	fi
 }
 
-# TODO: use getopts instead for named args
-# run pwm-fan
+usage() {
+    echo ''
+    echo 'Usage:'
+    echo ''
+    echo "$0" '[OPTIONS]'
+    echo ''
+    echo '  Options:'
+    echo '    -c  st  Name of the PWM CHANNEL (e.g., pwm0, pwm1). Default: pwm0'
+    echo '    -C  st  Name of the PWM CONTROLLER (e.g., pwmchip0, pwmchip1). Default: pwmchip1'
+    echo '    -d  in  Lowest DUTY CYCLE threshold (in percentage of the period). Default: 25'
+    echo '    -D  in  Highest DUTY CYCLE threshold (in percentage of the period). Default: 100'
+    echo '    -f      Fan runs at FULL SPEED all the time. If omitted (default), speed depends on temperature.'
+    echo '    -F  in  TIME (in seconds) to run the fan at full speed during STARTUP. Default: 60'
+    echo '    -h      Show this HELP message.'
+    echo '    -l  in  TIME (in seconds) to LOOP thermal reads. Lower means higher resolution but uses ever more resources. Default: 10'
+    echo '    -m  st  Name of the DEVICE to MONITOR the temperature in the thermal sysfs interface. Default: soc'
+    echo '    -p  in  The fan PERIOD (in nanoseconds). Default (30kHz): 30000000.'
+    echo '    -s  in  The MAX SIZE of the TEMPERATURE ARRAY. Interval between data points is set by -l. Default (store last 1min data): 6.'
+    echo '    -t  in  Lowest TEMPERATURE threshold (in Celsius). Lower temps set the fan speed to min. Default: 25'
+    echo '    -T  in  Highest TEMPERATURE threshold (in Celsius). Higher temps set the fan speed to max. Default: 75'
+    echo ''
+    echo '  If no options are provided, the script will run with default values.'
+    echo '  Defaults have been tested and optimized for the following hardware:'
+    echo '    -  NanoPi-M4 v2'
+    echo '    -  M4 SATA hat'
+    echo '    -  Generic 12V (0.2A) fan'
+    echo '    -  Fan 12V (.08A)'
+    echo '  And software:'
+    echo '    -  Kernel: Linux 4.4.231-rk3399'
+    echo '    -  OS: Armbian Buster (20.08.9) stable'
+    echo '    -  GNU bash v5.0.3'
+    echo '    -  bc v1.07.1'
+    echo ''
+    echo 'Author: cgomesu'
+    echo 'Repo: https://github.com/cgomesu/nanopim4-satahat-fan'
+    echo ''
+    echo 'This is free. There is NO WARRANTY. Use at your own risk.'
+    echo ''
+}
+
+while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:' OPT; do
+    case ${OPT} in
+        c)
+            CHANNEL="$OPTARG"
+            if [[ ! $CHANNEL =~ ^pwm[0-9]+$ ]]; then
+                echo 'The name of the pwm channel must contain pwm and at least a number (pwm0).'
+                exit 1
+            fi
+            ;;
+        C)
+            PWMCHIP="$OPTARG"
+            if [[ ! $PWMCHIP =~ ^pwmchip[0-9]+$ ]]; then
+                echo 'The name of the pwm controller must contain pwmchip and at least a number (pwmchip1).'
+                exit 1
+            fi
+            ;;
+        d)
+            DC_PERCENT_MIN="$OPTARG"
+            if [[ ! $DC_PERCENT_MIN =~ ^([0-6][0-9]?|70)$ ]]; then
+                echo 'The lowest duty cycle threshold must be an integer between 0 and 70.'
+                exit 1
+            fi
+            ;;
+        D)
+            DC_PERCENT_MAX="$OPTARG"
+            if [[ ! $DC_PERCENT_MAX =~ ^([8-9][0-9]?|100)$ ]]; then
+                echo 'The highest duty cycle threshold must be an integer between 80 and 100.'
+                exit 1
+            fi
+            ;;
+        f)
+            SKIP_THERMAL=1
+            ;;
+        F)
+            TIME_STARTUP="$OPTARG"
+            if [[ ! $TIME_STARTUP =~ ^[0-9]+$ ]]; then
+                echo 'The time to run the fan at full speed during startup must be an integer.'
+                exit 1
+            fi
+            ;;
+        h)
+            usage
+            exit 0
+            ;;
+        l)
+            TIME_LOOP="$OPTARG"
+            if [[ ! $TIME_LOOP =~ ^[0-9]+$ ]]; then
+                echo 'The time to loop thermal reads must be an integer.'
+                exit 1
+            fi
+            ;;
+        m)
+            MONIT_DEVICE="$OPTARG"
+            ;;
+        p)
+            PERIOD="$OPTARG"
+            if [[ ! $PERIOD =~ ^[0-9]+$ ]]; then
+                echo 'The period must be an integer.'
+                exit 1
+            fi
+            ;;
+        s)
+            TEMPS_SIZE="$OPTARG"
+            if [[ ! $TEMPS_SIZE =~ ^[0-9]+$ ]]; then
+                echo 'The max size of the temperature array must be an integer.'
+                exit 1
+            fi
+            ;;
+        t)
+            THERMAL_ABS_THRESH_LOW="$OPTARG"
+            if [[ ! $THERMAL_ABS_THRESH_LOW =~ ^[0-4][0-9]?$ ]]; then
+                echo 'The lowest temperature threshold must be an integer between 0 and 49.'
+                exit 1
+            fi
+            ;;
+        T)
+            THERMAL_ABS_THRESH_HIGH="$OPTARG"
+            if [[ ! $THERMAL_ABS_THRESH_HIGH =~ ^([5-9][0-9]?|1[0-1][0-9]?|120)$ ]]; then
+                echo 'The highest temperature threshold must be an integer between 50 and 120.'
+                exit 1
+            fi
+            ;;
+        \?)
+            echo '!! ATTENTION !!' 
+            echo '................................'
+            echo 'Detected an invalid option.'
+            echo 'Try: '"$0"' -h'
+            echo '................................'
+            exit 1
+            ;;
+    esac
+done
+
 start
 trap 'interrupt' SIGINT SIGHUP SIGTERM SIGKILL
-# user may provide custom period (in nanoseconds) as arg to the script
-config 'pwmchip1' 'pwm0' "$1"
-# TODO: allow user to select fancontrol algorithm (fixed table vs dynamic)
+config
 fan_run
