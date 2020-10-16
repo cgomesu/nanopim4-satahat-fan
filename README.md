@@ -5,7 +5,9 @@ Many of the variables used in this fan controller can be modified directly from 
 
 There's arguably more code here than necessary to run a fan controller. This was a hobbie of mine (I wanted to revisit the first version which used a fixed table to set the speed) and an opportunity to learn more about bash and the sysfs interface.  
 
-If you have any issues or suggestions, open an issue or [send me an e-mail](mailto:me@cgomesu.com).
+This is free. There is NO WARRANTY. Use at your own risk. 
+
+If you have any issues or suggestions, open an issue or [send me an e-mail](mailto:me@cgomesu.com). 
 
 
 # Requisites
