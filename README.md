@@ -24,17 +24,16 @@ The controller was developed with **Armbian OS** but you should be able to run i
 -  M4 SATA hat
 -  12V (.08A) generic fan
 
-<p align="center">
-  <img width="250" height="250" src="img/fan-side-b-500-500.jpg"><br>
-  <img width="250" height="250" src="img/fan-side-a-500-500.jpg">
-</p>
-
-
 And software:
 -  Kernel: Linux 4.4.231-rk3399
 -  OS: Armbian Buster (20.08.9) stable
 -  GNU bash v5.0.3
 -  bc v1.07.1
+
+<p align="center">
+  <img style="border:2px solid black" width="250" height="250" src="img/fan-side-b-500-500.jpg"><br>
+  <img style="border:2px solid black" width="250" height="250" src="img/fan-side-a-500-500.jpg">
+</p>
 
 
 # Installation
