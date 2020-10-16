@@ -31,8 +31,8 @@ And software:
 -  bc v1.07.1
 
 <p align="center">
-  <img style="border:2px solid black" width="250" height="250" src="img/fan-side-b-500-500.jpg"><br>
-  <img style="border:2px solid black" width="250" height="250" src="img/fan-side-a-500-500.jpg">
+  <img width="250" height="250" src="img/fan-side-b-500-500.jpg"><br>
+  <img width="250" height="250" src="img/fan-side-a-500-500.jpg">
 </p>
 
 
