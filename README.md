@@ -9,6 +9,11 @@ This is free. There is NO WARRANTY. Use at your own risk.
 
 If you have any issues or suggestions, open an issue or [send me an e-mail](mailto:me@cgomesu.com). 
 
+<p align="center">
+![fan-side-b](img/fan-side-b-500-500.jpg)
+
+![fan-side-a](img/fan-side-a-500-500.jpg)
+</p>
 
 # Requisites
 - Linux distro;
