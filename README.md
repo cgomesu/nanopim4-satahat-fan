@@ -9,13 +9,6 @@ This is free. There is NO WARRANTY. Use at your own risk.
 
 If you have any issues or suggestions, open an issue or [send me an e-mail](mailto:me@cgomesu.com). 
 
-<p align="center">
-
-![fan-side-b](img/fan-side-b-500-500.jpg)
-
-![fan-side-a](img/fan-side-a-500-500.jpg)
-
-</p>
 
 # Requisites
 - Linux distro;
@@ -30,6 +23,12 @@ The controller was developed with **Armbian OS** but you should be able to run i
 -  NanoPi-M4 v2
 -  M4 SATA hat
 -  12V (.08A) generic fan
+
+<p align="center">
+  <img width="250" height="250" src="img/fan-side-b-500-500.jpg"><br>
+  <img width="250" height="250" src="img/fan-side-a-500-500.jpg">
+</p>
+
 
 And software:
 -  Kernel: Linux 4.4.231-rk3399
