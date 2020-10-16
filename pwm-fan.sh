@@ -3,8 +3,11 @@
 ###############################################################################
 # Bash script to control the NanoPi M4 SATA hat 12v fan via the sysfs interface
 ###############################################################################
-# Official pwm sysfs doc:
-# https://www.kernel.org/doc/Documentation/pwm.txt
+# Author: cgomesu
+# Repo: https://github.com/cgomesu/nanopim4-satahat-fan
+# Official pwm sysfs doc: https://www.kernel.org/doc/Documentation/pwm.txt
+#
+# This is free. There is NO WARRANTY. Use at your own risk.
 ###############################################################################
 
 cache () {
@@ -110,7 +113,7 @@ fan_initialization () {
 	echo $READ_MAX_DUTY_CYCLE 2> $CACHE > $CHANNEL_FOLDER'duty_cycle'
 	# on error, try setting duty_cycle to a lower value
 	if [[ ! -z $(cat $CACHE) ]]; then
-		local READ_MAX_DUTY_CYCLE=$(cat $CHANNEL_FOLDER'period')-100
+		local READ_MAX_DUTY_CYCLE=$(($(cat $CHANNEL_FOLDER'period')-100))
 		> $CACHE
 		echo $READ_MAX_DUTY_CYCLE 2> $CACHE > $CHANNEL_FOLDER'duty_cycle'
 		if [[ ! -z $(cat $CACHE) ]]; then
@@ -353,19 +356,19 @@ usage() {
     echo "$0" '[OPTIONS]'
     echo ''
     echo '  Options:'
-    echo '    -c  st  Name of the PWM CHANNEL (e.g., pwm0, pwm1). Default: pwm0'
-    echo '    -C  st  Name of the PWM CONTROLLER (e.g., pwmchip0, pwmchip1). Default: pwmchip1'
-    echo '    -d  in  Lowest DUTY CYCLE threshold (in percentage of the period). Default: 25'
-    echo '    -D  in  Highest DUTY CYCLE threshold (in percentage of the period). Default: 100'
-    echo '    -f      Fan runs at FULL SPEED all the time. If omitted (default), speed depends on temperature.'
-    echo '    -F  in  TIME (in seconds) to run the fan at full speed during STARTUP. Default: 60'
-    echo '    -h      Show this HELP message.'
-    echo '    -l  in  TIME (in seconds) to LOOP thermal reads. Lower means higher resolution but uses ever more resources. Default: 10'
-    echo '    -m  st  Name of the DEVICE to MONITOR the temperature in the thermal sysfs interface. Default: soc'
-    echo '    -p  in  The fan PERIOD (in nanoseconds). Default (30kHz): 30000000.'
-    echo '    -s  in  The MAX SIZE of the TEMPERATURE ARRAY. Interval between data points is set by -l. Default (store last 1min data): 6.'
-    echo '    -t  in  Lowest TEMPERATURE threshold (in Celsius). Lower temps set the fan speed to min. Default: 25'
-    echo '    -T  in  Highest TEMPERATURE threshold (in Celsius). Higher temps set the fan speed to max. Default: 75'
+    echo '    -c  str  Name of the PWM CHANNEL (e.g., pwm0, pwm1). Default: pwm0'
+    echo '    -C  str  Name of the PWM CONTROLLER (e.g., pwmchip0, pwmchip1). Default: pwmchip1'
+    echo '    -d  int  Lowest DUTY CYCLE threshold (in percentage of the period). Default: 25'
+    echo '    -D  int  Highest DUTY CYCLE threshold (in percentage of the period). Default: 100'
+    echo '    -f       Fan runs at FULL SPEED all the time. If omitted (default), speed depends on temperature.'
+    echo '    -F  int  TIME (in seconds) to run the fan at full speed during STARTUP. Default: 60'
+    echo '    -h       Show this HELP message.'
+    echo '    -l  int  TIME (in seconds) to LOOP thermal reads. Lower means higher resolution but uses ever more resources. Default: 10'
+    echo '    -m  str  Name of the DEVICE to MONITOR the temperature in the thermal sysfs interface. Default: soc'
+    echo '    -p  int  The fan PERIOD (in nanoseconds). Default (30kHz): 30000000.'
+    echo '    -s  int  The MAX SIZE of the TEMPERATURE ARRAY. Interval between data points is set by -l. Default (store last 1min data): 6.'
+    echo '    -t  int  Lowest TEMPERATURE threshold (in Celsius). Lower temps set the fan speed to min. Default: 25'
+    echo '    -T  int  Highest TEMPERATURE threshold (in Celsius). Higher temps set the fan speed to max. Default: 75'
     echo ''
     echo '  If no options are provided, the script will run with default values.'
     echo '  Defaults have been tested and optimized for the following hardware:'
