@@ -1,7 +1,7 @@
 # nanopim4-satahat-fan
-A fan control script in Bash for the [**2-pin PH2.0 12v fan connector of the NanoPi M4 SATA hat**](http://wiki.friendlyarm.com/wiki/index.php/NanoPi_M4_SATA_HAT). By default, the script uses a bounded [logistic model](https://en.wikipedia.org/wiki/Logistic_function) with a moving mid-point (based on the average temperature over time) to set the fan speed. 
+A fan control script written in bash for the [**2-pin PH2.0 12v fan connector of the NanoPi M4 SATA hat**](http://wiki.friendlyarm.com/wiki/index.php/NanoPi_M4_SATA_HAT). By default, the script uses a bounded [logistic model](https://en.wikipedia.org/wiki/Logistic_function) with a moving mid-point (based on the average temperature over time) to set the fan speed. 
 
-Many of the variables use in this fan controller can be modified directly from the CLI, such as setting custom temperature thresholds (`-t`, `-T`) or disabling temperature monitoring altogether (`-f`). For a more detailed description, see [**Usage**](#usage).
+Many of the variables used in this fan controller can be modified directly from the CLI, such as setting custom temperature thresholds (`-t`, `-T`) or disabling temperature monitoring altogether (`-f`). For a more detailed description, see [**Usage**](#usage).
 
 There's arguably more code here than necessary to run a fan controller. This was a hobbie of mine (I wanted to revisit the first version which used a fixed table to set the speed) and an opportunity to learn more about bash and the sysfs interface.  
 
@@ -9,13 +9,15 @@ If you have any issues or suggestions, open an issue or [send me an e-mail](mail
 
 
 # Requisites
-- GNU bash;
-- Access to the [pwm sysfs interface](https://www.kernel.org/doc/Documentation/pwm.txt);
-- Standard Linux commands.
+- Linux distro;
+- Access to the [pwm sysfs interface](https://www.kernel.org/doc/Documentation/pwm.txt) (run with `sudo` permission or as `root`);
+- [GNU bash](https://www.gnu.org/software/bash/) (recommend v5.x);
+- [GNU basic calculator](https://www.gnu.org/software/bc/);
+- Standard GNU/Linux commands.
 
 Besides bash, you don't need to check for any of these requisites manually. The script will automatically check for everything it needs to run and will let you know if there's any errors or missing access to important commands.  
 
-The controller was developed with Armbian OS but you should be able to run it on any other Linux distro for the NanoPi M4. For reference, this script was originally developed with the following hardware:
+The controller was developed with **Armbian OS** but you should be able to run it on **any other Linux distro** for the NanoPi M4. For reference, this script was originally developed with the following hardware:
 -  NanoPi-M4 v2
 -  M4 SATA hat
 -  12V (.08A) generic fan
@@ -29,8 +31,8 @@ And software:
 
 # Installation
 ```
-apt-get update
-apt-get install git
+apt update
+apt install git
 cd /opt
 
 # From now on, if you're not running as root, append 'sudo' if you run into permission issues
@@ -114,7 +116,7 @@ This is free. There is NO WARRANTY. Use at your own risk.
 
 
 # Run in the background
-If you're running options different than the default values, first edit the `pwm-fan.service` file to include those options in the `ExecStart=` row. 
+If you're running options different than the default values, first edit the `pwm-fan.service` file to include those options into the `ExecStart=` command execution. 
 
 ```
 # Copy the pwm-fan.service file to your systemd folder
