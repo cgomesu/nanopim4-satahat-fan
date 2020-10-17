@@ -3,7 +3,7 @@ A fan control script written in bash for the [**2-pin PH2.0 12v fan connector of
 
 Many of the variables used in this fan controller can be modified directly from the CLI, such as setting custom temperature thresholds (`-t`, `-T`) or disabling temperature monitoring altogether (`-f`). For a more detailed description, see [**Usage**](#usage).
 
-There's arguably more code here than necessary to run a fan controller. This was a hobbie of mine (I wanted to revisit the first version which used a fixed table to set the speed) and an opportunity to learn more about bash and the sysfs interface.  
+There's arguably more code here than necessary to run a fan controller. This was a hobby of mine (I wanted to revisit the first version which used a fixed table to set the speed) and an opportunity to learn more about bash and the sysfs interface.  
 
 This is free. There is NO WARRANTY. Use at your own risk. 
 
