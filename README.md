@@ -76,7 +76,7 @@ Usage:
     -h       Show this HELP message.
     -l  int  TIME (in seconds) to LOOP thermal reads. Lower means higher resolution but uses ever more resources. Default: 10
     -m  str  Name of the DEVICE to MONITOR the temperature in the thermal sysfs interface. Default: soc
-    -p  int  The fan PERIOD (in nanoseconds). Default (30kHz): 30000000.
+    -p  int  The fan PERIOD (in nanoseconds). Default (25kHz): 25000000.
     -s  int  The MAX SIZE of the TEMPERATURE ARRAY. Interval between data points is set by -l. Default (store last 1min data): 6.
     -t  int  Lowest TEMPERATURE threshold (in Celsius). Lower temps set the fan speed to min. Default: 25
     -T  int  Highest TEMPERATURE threshold (in Celsius). Higher temps set the fan speed to max. Default: 75
@@ -85,7 +85,7 @@ Usage:
   Defaults have been tested and optimized for the following hardware:
     -  NanoPi-M4 v2
     -  M4 SATA hat
-    -  Fan 12V (.08A)
+    -  Fan 12V (.08A and .2A)
   And software:
     -  Kernel: Linux 4.4.231-rk3399
     -  OS: Armbian Buster (20.08.9) stable
