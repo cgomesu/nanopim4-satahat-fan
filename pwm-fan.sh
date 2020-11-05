@@ -310,7 +310,8 @@ thermal_meter () {
 
 thermal_monit () {
 	if [[ -z $MONIT_DEVICE ]]; then
-		MONIT_DEVICE='soc'
+		# soc for legacy Kernel or cpu for latest Kernel
+		MONIT_DEVICE='(soc|cpu)'
 	fi
 	local THERMAL_FOLDER='/sys/class/thermal/'
 	if [[ -d $THERMAL_FOLDER && -z $SKIP_THERMAL ]]; then
@@ -364,7 +365,7 @@ usage() {
     echo '    -F  int  TIME (in seconds) to run the fan at full speed during STARTUP. Default: 60'
     echo '    -h       Show this HELP message.'
     echo '    -l  int  TIME (in seconds) to LOOP thermal reads. Lower means higher resolution but uses ever more resources. Default: 10'
-    echo '    -m  str  Name of the DEVICE to MONITOR the temperature in the thermal sysfs interface. Default: soc'
+    echo '    -m  str  Name of the DEVICE to MONITOR the temperature in the thermal sysfs interface. Default: (soc|cpu)'
     echo '    -p  int  The fan PERIOD (in nanoseconds). Default (25kHz): 25000000.'
     echo '    -s  int  The MAX SIZE of the TEMPERATURE ARRAY. Interval between data points is set by -l. Default (store last 1min data): 6.'
     echo '    -t  int  Lowest TEMPERATURE threshold (in Celsius). Lower temps set the fan speed to min. Default: 25'
