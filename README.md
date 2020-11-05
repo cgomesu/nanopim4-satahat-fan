@@ -22,7 +22,7 @@ Besides bash, you don't need to check for any of these requisites manually. The 
 The controller was developed with **Armbian OS** but you should be able to run it on **any other Linux distro** for the NanoPi M4. For reference, this script was originally developed with the following hardware:
 -  NanoPi-M4 v2
 -  M4 SATA hat
--  12V (.08A) generic fan
+-  12V (.08A-.2A) generic fan (**do not** try to use more than **200mA**)
 
 And software:
 -  Kernel: Linux 4.4.231-rk3399
@@ -31,8 +31,8 @@ And software:
 -  bc v1.07.1
 
 <p align="center">
-  <img width="250" height="250" src="img/fan-side-b-500-500.jpg"><br>
-  <img width="250" height="250" src="img/fan-side-a-500-500.jpg">
+  <img width="350" height="350" src="img/fan-pins-500-500.jpg"><br>
+  <img width="350" height="350" src="img/fan-soc-500-500.jpg">
 </p>
 
 
