@@ -126,11 +126,8 @@ This is free. There is NO WARRANTY. Use at your own risk.
 If you're running options different than the default values, first edit the `pwm-fan.service` file to include those options into the `ExecStart=` command execution. 
 
 ```
-# Copy the pwm-fan.service file to your systemd folder
-cp /opt/nanopim4-satahat-fan/pwm-fan.service /lib/systemd/system/
-
 # Enable the service and start it
-systemctl enable pwm-fan.service
+systemctl enable /opt/nanopim4-satahat-fan/pwm-fan.service
 systemctl start pwm-fan.service
 
 # Check the service status to make sure it's running without issues
