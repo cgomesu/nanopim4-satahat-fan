@@ -106,7 +106,7 @@ export_pwmchip_channel () {
 
 fan_initialization () {
 	if [[ -z "$TIME_STARTUP" ]]; then
-		TIME_STARTUP=60
+		TIME_STARTUP=10
 	fi
 	cache 'test_fan'
 	local READ_MAX_DUTY_CYCLE=$(cat $CHANNEL_FOLDER'period')
@@ -125,6 +125,7 @@ fan_initialization () {
 	echo 1 > $CHANNEL_FOLDER'enable'
 	sleep $TIME_STARTUP
 	echo $((MAX_DUTY_CYCLE/2)) > $CHANNEL_FOLDER'duty_cycle'
+	ON_OFF_STATE=1
 	echo '[pwm-fan] Initialization done. Duty cycle at 50% now: '$((MAX_DUTY_CYCLE/2))' ns.'
 	sleep 1
 }
@@ -155,6 +156,12 @@ fan_run_thermal () {
 		THERMAL_ABS_THRESH_HIGH=75
 	fi
 	THERMAL_ABS_THRESH=($THERMAL_ABS_THRESH_LOW $THERMAL_ABS_THRESH_HIGH)
+	if [[ -z $THERMAL_ABS_THRESH_OFF ]]; then
+		THERMAL_ABS_THRESH_OFF=0
+	fi
+	if [[ -z $THERMAL_ABS_THRESH_ON ]]; then
+		THERMAL_ABS_THRESH_ON=1
+	fi
 	if [[ -z $DC_PERCENT_MIN ]]; then
 		DC_PERCENT_MIN=25
 	fi
@@ -174,28 +181,36 @@ fan_run_thermal () {
 		if [[ ${#TEMPS[@]} -gt $TEMPS_SIZE ]]; then
 			TEMPS=(${TEMPS[@]:1})
 		fi
-		if [[ ${TEMPS[-1]} -le ${THERMAL_ABS_THRESH[0]} ]]; then
-			echo ${DC_ABS_THRESH[0]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
-		elif [[ ${TEMPS[-1]} -ge ${THERMAL_ABS_THRESH[-1]} ]]; then
-			echo ${DC_ABS_THRESH[-1]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
-		elif [[ ${#TEMPS[@]} -gt 1 ]]; then
-			TEMPS_SUM=0
-			for TEMP in ${TEMPS[@]}; do
-				let TEMPS_SUM+=$TEMP
-			done
-			# moving mid-point 
-			MEAN_TEMP=$((TEMPS_SUM/${#TEMPS[@]}))
-			DEV_MEAN_CRITICAL=$((MEAN_TEMP-100))
-			X0=${DEV_MEAN_CRITICAL#-}
-			# args: x, x0, L, a, b (k=a/b)
-			MODEL=$(function_logistic ${TEMPS[-1]} $X0 ${DC_ABS_THRESH[-1]} 1 10)
-			if [[ $MODEL -lt ${DC_ABS_THRESH[0]} ]]; then
-				echo ${DC_ABS_THRESH[0]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
-			elif [[ $MODEL -gt ${DC_ABS_THRESH[-1]} ]]; then
-				echo ${DC_ABS_THRESH[-1]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
-			else
-				echo $MODEL 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
-			fi
+		if [[ ${TEMPS[-1]} -le ${THERMAL_ABS_THRESH_OFF} ]]; then
+		    echo "0" 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
+		    ON_OFF_STATE=0
+		elif [[ ${TEMPS[-1]} -ge ${THERMAL_ABS_THRESH_ON} ]]; then
+		    ON_OFF_STATE=1
+		fi
+		if [[ $ON_OFF_STATE -eq 1 ]]; then
+		    if [[ ${TEMPS[-1]} -le ${THERMAL_ABS_THRESH[0]} ]]; then
+			    echo ${DC_ABS_THRESH[0]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
+		    elif [[ ${TEMPS[-1]} -ge ${THERMAL_ABS_THRESH[-1]} ]]; then
+			    echo ${DC_ABS_THRESH[-1]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
+		    elif [[ ${#TEMPS[@]} -gt 1 ]]; then
+			    TEMPS_SUM=0
+			    for TEMP in ${TEMPS[@]}; do
+				    let TEMPS_SUM+=$TEMP
+			    done
+			    # moving mid-point 
+			    MEAN_TEMP=$((TEMPS_SUM/${#TEMPS[@]}))
+			    DEV_MEAN_CRITICAL=$((MEAN_TEMP-100))
+			    X0=${DEV_MEAN_CRITICAL#-}
+			    # args: x, x0, L, a, b (k=a/b)
+			    MODEL=$(function_logistic ${TEMPS[-1]} $X0 ${DC_ABS_THRESH[-1]} 1 10)
+			    if [[ $MODEL -lt ${DC_ABS_THRESH[0]} ]]; then
+				    echo ${DC_ABS_THRESH[0]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
+			    elif [[ $MODEL -gt ${DC_ABS_THRESH[-1]} ]]; then
+				    echo ${DC_ABS_THRESH[-1]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
+			    else
+				    echo $MODEL 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
+			    fi
+		    fi
 		fi
 		sleep $TIME_LOOP
 	done
@@ -370,6 +385,8 @@ usage() {
     echo '    -s  int  The MAX SIZE of the TEMPERATURE ARRAY. Interval between data points is set by -l. Default (store last 1min data): 6.'
     echo '    -t  int  Lowest TEMPERATURE threshold (in Celsius). Lower temps set the fan speed to min. Default: 25'
     echo '    -T  int  Highest TEMPERATURE threshold (in Celsius). Higher temps set the fan speed to max. Default: 75'
+    echo '    -u  int  Fan-off TEMPERATURE threshold (in Celsius). Shuts off fan under the specified temperature. Default: 0'
+    echo '    -U  int  Fan-On TEMPERATURE threshold (in Celsius). Trun on fan control above the specified temperature. Default: 1'
     echo ''
     echo '  If no options are provided, the script will run with default values.'
     echo '  Defaults have been tested and optimized for the following hardware:'
@@ -389,7 +406,7 @@ usage() {
     echo ''
 }
 
-while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:' OPT; do
+while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
     case ${OPT} in
         c)
             CHANNEL="$OPTARG"
@@ -468,6 +485,20 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:' OPT; do
             THERMAL_ABS_THRESH_HIGH="$OPTARG"
             if [[ ! $THERMAL_ABS_THRESH_HIGH =~ ^([5-9][0-9]?|1[0-1][0-9]?|120)$ ]]; then
                 echo 'The highest temperature threshold must be an integer between 50 and 120.'
+                exit 1
+            fi
+            ;;
+        u)
+            THERMAL_ABS_THRESH_OFF="$OPTARG"
+            if [[ ! $THERMAL_ABS_THRESH_OFF =~ ^[0-4][0-9]?$ ]]; then
+                echo 'The OFF temperature threshold must be an integer between 0 and 49.'
+                exit 1
+            fi
+            ;;
+        U)
+            THERMAL_ABS_THRESH_ON="$OPTARG"
+            if [[ $THERMAL_ABS_THRESH_ON -le $THERMAL_ABS_THRESH_OFF ]]; then
+                echo 'The ON temperature threshold must be an integer strictly greater than the OFF temperature threshold.'
                 exit 1
             fi
             ;;
