@@ -106,7 +106,7 @@ export_pwmchip_channel () {
 
 fan_initialization () {
 	if [[ -z "$TIME_STARTUP" ]]; then
-		TIME_STARTUP=10
+		TIME_STARTUP=60
 	fi
 	cache 'test_fan'
 	local READ_MAX_DUTY_CYCLE=$(cat $CHANNEL_FOLDER'period')
@@ -125,7 +125,6 @@ fan_initialization () {
 	echo 1 > $CHANNEL_FOLDER'enable'
 	sleep $TIME_STARTUP
 	echo $((MAX_DUTY_CYCLE/2)) > $CHANNEL_FOLDER'duty_cycle'
-	ON_OFF_STATE=1
 	echo '[pwm-fan] Initialization done. Duty cycle at 50% now: '$((MAX_DUTY_CYCLE/2))' ns.'
 	sleep 1
 }
@@ -162,6 +161,9 @@ fan_run_thermal () {
 	if [[ -z $THERMAL_ABS_THRESH_ON ]]; then
 		THERMAL_ABS_THRESH_ON=1
 	fi
+	if [[ -z $FAN_ON_OFF_STATE ]]; then
+		FAN_ON_OFF_STATE=1
+	fi
 	if [[ -z $DC_PERCENT_MIN ]]; then
 		DC_PERCENT_MIN=25
 	fi
@@ -183,11 +185,11 @@ fan_run_thermal () {
 		fi
 		if [[ ${TEMPS[-1]} -le ${THERMAL_ABS_THRESH_OFF} ]]; then
 		    echo "0" 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
-		    ON_OFF_STATE=0
+		    FAN_ON_OFF_STATE=0
 		elif [[ ${TEMPS[-1]} -ge ${THERMAL_ABS_THRESH_ON} ]]; then
-		    ON_OFF_STATE=1
+		    FAN_ON_OFF_STATE=1
 		fi
-		if [[ $ON_OFF_STATE -eq 1 ]]; then
+		if [[ $FAN_ON_OFF_STATE -eq 1 ]]; then
 		    if [[ ${TEMPS[-1]} -le ${THERMAL_ABS_THRESH[0]} ]]; then
 			    echo ${DC_ABS_THRESH[0]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
 		    elif [[ ${TEMPS[-1]} -ge ${THERMAL_ABS_THRESH[-1]} ]]; then
@@ -386,7 +388,7 @@ usage() {
     echo '    -t  int  Lowest TEMPERATURE threshold (in Celsius). Lower temps set the fan speed to min. Default: 25'
     echo '    -T  int  Highest TEMPERATURE threshold (in Celsius). Higher temps set the fan speed to max. Default: 75'
     echo '    -u  int  Fan-off TEMPERATURE threshold (in Celsius). Shuts off fan under the specified temperature. Default: 0'
-    echo '    -U  int  Fan-On TEMPERATURE threshold (in Celsius). Trun on fan control above the specified temperature. Default: 1'
+    echo '    -U  int  Fan-On TEMPERATURE threshold (in Celsius). Turn on fan control above the specified temperature. Default: 1'
     echo ''
     echo '  If no options are provided, the script will run with default values.'
     echo '  Defaults have been tested and optimized for the following hardware:'
@@ -476,21 +478,21 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
             ;;
         t)
             THERMAL_ABS_THRESH_LOW="$OPTARG"
-            if [[ ! $THERMAL_ABS_THRESH_LOW =~ ^[0-4][0-9]?$ ]]; then
+            if [[ ! $THERMAL_ABS_THRESH_LOW =~ ^[0-4]?[0-9]$ ]]; then
                 echo 'The lowest temperature threshold must be an integer between 0 and 49.'
                 exit 1
             fi
             ;;
         T)
             THERMAL_ABS_THRESH_HIGH="$OPTARG"
-            if [[ ! $THERMAL_ABS_THRESH_HIGH =~ ^([5-9][0-9]?|1[0-1][0-9]?|120)$ ]]; then
+            if [[ ! $THERMAL_ABS_THRESH_HIGH =~ ^([5-9][0-9]|1[0-1][0-9]|120)$ ]]; then
                 echo 'The highest temperature threshold must be an integer between 50 and 120.'
                 exit 1
             fi
             ;;
         u)
             THERMAL_ABS_THRESH_OFF="$OPTARG"
-            if [[ ! $THERMAL_ABS_THRESH_OFF =~ ^[0-4][0-9]?$ ]]; then
+            if [[ ! $THERMAL_ABS_THRESH_OFF =~ ^[0-4]?[0-9]$ ]]; then
                 echo 'The OFF temperature threshold must be an integer between 0 and 49.'
                 exit 1
             fi
