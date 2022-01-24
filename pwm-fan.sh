@@ -415,29 +415,33 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
         c)
             CHANNEL="$OPTARG"
             if [[ ! $CHANNEL =~ ^pwm[0-9]+$ ]]; then
-                message 'The name of the pwm channel must contain pwm and at least one integer (pwm0).' 'ERROR'
-                exit 1
+              message "The value for the '-c' argument ('$CHANNEL') is invalid." 'ERROR'
+              message 'The name of the pwm channel must contain pwm and at least one integer (pwm0).' 'ERROR'
+              exit 1
             fi
             ;;
         C)
             PWMCHIP="$OPTARG"
             if [[ ! $PWMCHIP =~ ^pwmchip[0-9]+$ ]]; then
-                message 'The name of the pwm controller must contain pwmchip and at least one integer (pwmchip1).' 'ERROR'
-                exit 1
+              message "The value for the '-C' argument ($PWMCHIP) is invalid." 'ERROR'
+              message 'The name of the pwm controller must contain pwmchip and at least one integer (pwmchip1).' 'ERROR'
+              exit 1
             fi
             ;;
         d)
             DC_PERCENT_MIN="$OPTARG"
-            if [[ ! $DC_PERCENT_MIN =~ ^([0-6][0-9]?|70)$ ]]; then
-                message 'The lowest duty cycle threshold must be an integer between 0 and 70.' 'ERROR'
-                exit 1
+            if [[ ! $DC_PERCENT_MIN =~ ^[0-4]?[0-9]$ ]]; then
+              message "The value for the '-d' argument ($DC_PERCENT_MIN) is invalid." 'ERROR'
+              message 'The lowest duty cycle threshold must be an integer between 0 and 49.' 'ERROR'
+              exit 1
             fi
             ;;
         D)
             DC_PERCENT_MAX="$OPTARG"
-            if [[ ! $DC_PERCENT_MAX =~ ^([8-9][0-9]?|100)$ ]]; then
-                message 'The highest duty cycle threshold must be an integer between 80 and 100.' 'ERROR'
-                exit 1
+            if [[ ! $DC_PERCENT_MAX =~ ^([5-9][0-9]|100)$ ]]; then
+              message "The value for the '-D' argument ($DC_PERCENT_MAX) is invalid." 'ERROR'
+              message 'The highest duty cycle threshold must be an integer between 50 and 100.' 'ERROR'
+              exit 1
             fi
             ;;
         f)
@@ -446,8 +450,9 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
         F)
             TIME_STARTUP="$OPTARG"
             if [[ ! $TIME_STARTUP =~ ^[0-9]+$ ]]; then
-                message 'The time to run the fan at full speed during startup must be an integer.' 'ERROR'
-                exit 1
+              message "The value for the '-F' argument ($TIME_STARTUP) is invalid." 'ERROR'
+              message 'The time to run the fan at full speed during startup must be an integer.' 'ERROR'
+              exit 1
             fi
             ;;
         h)
@@ -457,8 +462,9 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
         l)
             TIME_LOOP="$OPTARG"
             if [[ ! $TIME_LOOP =~ ^[0-9]+$ ]]; then
-                message 'The time to loop thermal reads must be an integer.' 'ERROR'
-                exit 1
+              message "The value for the '-l' argument ($TIME_LOOP) is invalid." 'ERROR'
+              message 'The time to loop thermal reads must be an integer.' 'ERROR'
+              exit 1
             fi
             ;;
         m)
@@ -467,43 +473,49 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
         p)
             PERIOD="$OPTARG"
             if [[ ! $PERIOD =~ ^[0-9]+$ ]]; then
-                message 'The period must be an integer.' 'ERROR'
-                exit 1
+              message "The value for the '-p' argument ($PERIOD) is invalid." 'ERROR'
+              message 'The period must be an integer.' 'ERROR'
+              exit 1
             fi
             ;;
         s)
             TEMPS_SIZE="$OPTARG"
             if [[ ! $TEMPS_SIZE =~ ^[0-9]+$ ]]; then
-                message 'The max size of the temperature array must be an integer.' 'ERROR'
-                exit 1
+              message "The value for the '-s' argument ($TEMPS_SIZE) is invalid." 'ERROR'
+              message 'The max size of the temperature array must be an integer.' 'ERROR'
+              exit 1
             fi
             ;;
         t)
             THERMAL_ABS_THRESH_LOW="$OPTARG"
-            if [[ ! $THERMAL_ABS_THRESH_LOW =~ ^[0-4]?[0-9]$ ]]; then
-                message 'The lowest temperature threshold must be an integer between 0 and 49.' 'ERROR'
-                exit 1
+            if [[ ! $THERMAL_ABS_THRESH_LOW =~ ^[0-5]?[0-9]$ ]]; then
+              message "The value for the '-t' argument ($THERMAL_ABS_THRESH_LOW) is invalid." 'ERROR'
+              message 'The lowest temperature threshold must be an integer between 0 and 59.' 'ERROR'
+              exit 1
             fi
             ;;
         T)
             THERMAL_ABS_THRESH_HIGH="$OPTARG"
-            if [[ ! $THERMAL_ABS_THRESH_HIGH =~ ^([5-9][0-9]|1[0-1][0-9]|120)$ ]]; then
-                message 'The highest temperature threshold must be an integer between 50 and 120.' 'ERROR'
-                exit 1
+            if [[ ! $THERMAL_ABS_THRESH_HIGH =~ ^([6-9][0-9]|1[0-1][0-9]|120)$ ]]; then
+              message "The value for the '-T' argument ($THERMAL_ABS_THRESH_HIGH) is invalid." 'ERROR'
+              message 'The highest temperature threshold must be an integer between 60 and 120.' 'ERROR'
+              exit 1
             fi
             ;;
         u)
             THERMAL_ABS_THRESH_OFF="$OPTARG"
-            if [[ ! $THERMAL_ABS_THRESH_OFF =~ ^[0-4]?[0-9]$ ]]; then
-                message 'The OFF temperature threshold must be an integer between 0 and 49.' 'ERROR'
-                exit 1
+            if [[ ! $THERMAL_ABS_THRESH_OFF =~ ^[0-5]?[0-9]$ ]]; then
+              message "The value for the '-u' argument ($THERMAL_ABS_THRESH_OFF) is invalid." 'ERROR'
+              message 'The OFF temperature threshold must be an integer between 0 and 59.' 'ERROR'
+              exit 1
             fi
             ;;
         U)
             THERMAL_ABS_THRESH_ON="$OPTARG"
-            if [[ $THERMAL_ABS_THRESH_ON -le $THERMAL_ABS_THRESH_OFF ]]; then
-                message 'The ON temperature threshold must be an integer strictly greater than the OFF temperature threshold.' 'ERROR'
-                exit 1
+            if [[ $THERMAL_ABS_THRESH_ON -le $THERMAL_ABS_THRESH_OFF || ! $THERMAL_ABS_THRESH_ON =~ ^[0-9]+$ ]]; then
+              message "The value for the '-U' argument ($THERMAL_ABS_THRESH_ON) is invalid." 'ERROR'
+              message 'The ON temperature threshold (-U) must be an integer strictly greater than the OFF temperature threshold (-u).' 'ERROR'
+              exit 1
             fi
             ;;
         \?)
