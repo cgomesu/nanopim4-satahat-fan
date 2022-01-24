@@ -10,9 +10,37 @@
 # This is free. There is NO WARRANTY. Use at your own risk.
 ###############################################################################
 
+start () {
+	echo '####################################################'
+	echo '# STARTING PWM-FAN SCRIPT'
+	echo "# Date and time: $(date)"
+	echo '####################################################'
+	check_requisites
+}
+
 # takes a message ($1) and its status ($2) as args
 message () {
   echo "[pwm-fan] [$2] $1"
+}
+
+# takes message ($1) and exit status ($2) as arguments
+end () {
+	cleanup
+	echo '####################################################'
+	echo '# END OF THE PWM-FAN SCRIPT'
+	echo "# MESSAGE: $1"
+	echo '####################################################'
+	exit "$2"
+}
+
+cleanup () {
+	message 'Cleaning up.' 'INFO'
+	# disable the channel
+	unexport_pwmchip_channel
+	# clean cache files
+	if [[ -d "$CACHE_ROOT" ]]; then
+		rm -rf "$CACHE_ROOT"
+	fi
 }
 
 cache () {
@@ -45,34 +73,6 @@ check_requisites () {
 		fi
 	done
 	message 'All commands are accesible.' 'INFO'
-}
-
-cleanup () {
-	message 'Cleaning up.' 'INFO'
-	# disable the channel
-	unexport_pwmchip_channel
-	# clean cache files
-	if [[ -d "$CACHE_ROOT" ]]; then
-		rm -rf "$CACHE_ROOT"
-	fi
-}
-
-config () {
-	pwmchip
-	export_pwmchip_channel
-	fan_startup
-	fan_initialization
-	thermal_monit
-}
-
-# takes message ($1) and exit status ($2) as arguments
-end () {
-	cleanup
-	echo '####################################################'
-	echo '# END OF THE PWM-FAN SCRIPT'
-	echo "# MESSAGE: $1"
-	echo '####################################################'
-	exit "$2"
 }
 
 export_pwmchip_channel () {
@@ -311,14 +311,6 @@ set_default () {
 	message "Default duty cycle: $(cat $CHANNEL_FOLDER'duty_cycle') ns" 'INFO'
 }
 
-start () {
-	echo '####################################################'
-	echo '# STARTING PWM-FAN SCRIPT'
-	echo "# Date and time: $(date)"
-	echo '####################################################'
-	check_requisites
-}
-
 thermal_meter () {
 	if [[ -f $TEMP_FILE ]]; then
 		local TEMP=$(cat $TEMP_FILE 2> /dev/null)
@@ -409,6 +401,10 @@ usage() {
     echo 'This is free. There is NO WARRANTY. Use at your own risk.'
     echo ''
 }
+
+
+############
+# main logic
 
 while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
     case ${OPT} in
@@ -532,5 +528,13 @@ done
 
 start
 trap 'interrupt' INT HUP TERM
-config
+
+# configuration functions
+pwmchip
+export_pwmchip_channel
+fan_startup
+fan_initialization
+thermal_monit
+
+# run functions
 fan_run
