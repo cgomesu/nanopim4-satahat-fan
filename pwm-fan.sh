@@ -78,21 +78,21 @@ cache () {
   else
     local FILENAME="$1"
   fi
-  if [[ ! -d "$CACHE_ROOT" ]]; then
+  if [[ ! -d $CACHE_ROOT ]]; then
     mkdir "$CACHE_ROOT"
   fi
-  CACHE=$CACHE_ROOT$FILENAME'.cache'
-  if [[ ! -f "$CACHE" ]]; then
+  CACHE="$CACHE_ROOT$FILENAME.cache"
+  if [[ ! -f $CACHE ]]; then
     touch "$CACHE"
   else
-    > "$CACHE"
+    :> "$CACHE"
   fi
 }
 
 check_requisites () {
-  message "Checking requisites: ${REQUISITES[@]}" 'INFO'
+  message "Checking requisites." 'INFO'
   for cmd in "${REQUISITES[@]}"; do
-    if [[ -z $(command -v $cmd) ]]; then
+    if [[ -z $(command -v "$cmd") ]]; then
       message "The following program is not installed or cannot be found in this users \$PATH: '$cmd'. Fix it and try again." 'ERROR'
       end "Missing important packages. Cannot continue." 1
     fi
@@ -101,15 +101,16 @@ check_requisites () {
 }
 
 export_pwmchip_channel () {
-  if [[ ! -d "$CHANNEL_FOLDER" ]]; then
-    local EXPORT=$PWMCHIP_FOLDER'export'
+  if [[ ! -d $CHANNEL_FOLDER ]]; then
+    local EXPORT
+    EXPORT=$PWMCHIP_FOLDER'export'
     cache 'export'
-    local EXPORT_SET=$(echo 0 2> "$CACHE" > "$EXPORT")
-    if [[ ! -z $(cat "$CACHE") ]]; then
+    echo 0 2> "$CACHE" > "$EXPORT"
+    if [[ -n $(cat "$CACHE") ]]; then
       # on error, parse output
       if [[ $(cat "$CACHE") =~ (P|p)ermission\ denied ]]; then
         message "This user does not have permission to use channel '${CHANNEL:-$DEFAULT_CHANNEL}'." 'ERROR'
-        if [[ ! -z $(command -v stat) ]]; then
+        if [[ -n $(command -v stat) ]]; then
           message "Export is owned by user '$(stat -c '%U' "$EXPORT")' and group '$(stat -c '%G' "$EXPORT")'." 'WARNING'
         fi
         local ERR_MSG='User permission error while setting channel.'
@@ -126,29 +127,30 @@ export_pwmchip_channel () {
       end "$ERR_MSG" 1
     fi
     sleep 1
-  elif [[ -d "$CHANNEL_FOLDER" ]]; then
+  elif [[ -d $CHANNEL_FOLDER ]]; then
     message "'${CHANNEL:-$DEFAULT_CHANNEL}' channel is already accessible." 'WARNING'
   fi
 }
 
 fan_initialization () {
   cache 'test_fan'
-  local READ_MAX_DUTY_CYCLE=$(cat $CHANNEL_FOLDER'period')
-  echo $READ_MAX_DUTY_CYCLE 2> $CACHE > $CHANNEL_FOLDER'duty_cycle'
+  local READ_MAX_DUTY_CYCLE
+  READ_MAX_DUTY_CYCLE=$(cat "$CHANNEL_FOLDER"'period')
+  echo "$READ_MAX_DUTY_CYCLE" 2> "$CACHE" > "$CHANNEL_FOLDER"'duty_cycle'
   # on error, try setting duty_cycle to a lower value
-  if [[ ! -z $(cat $CACHE) ]]; then
-    local READ_MAX_DUTY_CYCLE=$(($(cat $CHANNEL_FOLDER'period')-100))
-    > $CACHE
-    echo $READ_MAX_DUTY_CYCLE 2> $CACHE > $CHANNEL_FOLDER'duty_cycle'
-    if [[ ! -z $(cat $CACHE) ]]; then
+  if [[ -n $(cat "$CACHE") ]]; then
+    READ_MAX_DUTY_CYCLE=$(($(cat "$CHANNEL_FOLDER"'period')-100))
+    :> "$CACHE"
+    echo "$READ_MAX_DUTY_CYCLE" 2> "$CACHE" > "$CHANNEL_FOLDER"'duty_cycle'
+    if [[ -n $(cat "$CACHE") ]]; then
       end 'Unable to set max duty_cycle.' 1
     fi
   fi
-  MAX_DUTY_CYCLE=$READ_MAX_DUTY_CYCLE
+  MAX_DUTY_CYCLE="$READ_MAX_DUTY_CYCLE"
   message "Running fan at full speed for the next ${TIME_STARTUP:-$DEFAULT_TIME_STARTUP} seconds..." 'INFO'
-  echo 1 > $CHANNEL_FOLDER'enable'
+  echo 1 > "$CHANNEL_FOLDER"'enable'
   sleep "${TIME_STARTUP:-$DEFAULT_TIME_STARTUP}"
-  echo $((MAX_DUTY_CYCLE/2)) > $CHANNEL_FOLDER'duty_cycle'
+  echo $((MAX_DUTY_CYCLE/2)) > "$CHANNEL_FOLDER"'duty_cycle'
   message "Initialization done. Duty cycle at 50% now: '$((MAX_DUTY_CYCLE/2))' ns." 'INFO'
   sleep 1
 }
@@ -164,7 +166,7 @@ fan_run () {
 fan_run_max () {
   message "Running fan at full speed until stopped (Ctrl+C or kill '$$')..." 'INFO'
   while true; do
-    echo $MAX_DUTY_CYCLE > $CHANNEL_FOLDER'duty_cycle'
+    echo $MAX_DUTY_CYCLE > "$CHANNEL_FOLDER"'duty_cycle'
     # run every so often to make sure it is maxed
     sleep 120
   done
@@ -176,38 +178,38 @@ fan_run_thermal () {
   DC_ABS_THRESH=("$(((${DC_PERCENT_MIN:-$DEFAULT_DC_PERCENT_MIN}*MAX_DUTY_CYCLE)/100))" "$(((${DC_PERCENT_MAX:-$DEFAULT_DC_PERCENT_MAX}*MAX_DUTY_CYCLE)/100))")
   TEMPS=()
   while true; do
-    TEMPS+=($(thermal_meter))
+    TEMPS+=("$(thermal_meter)")
     if [[ ${#TEMPS[@]} -gt ${TEMPS_SIZE:-$DEFAULT_TEMPS_SIZE} ]]; then
-      TEMPS=(${TEMPS[@]:1})
+      TEMPS=("${TEMPS[@]:1}")
     fi
     if [[ ${TEMPS[-1]} -le ${THERMAL_ABS_THRESH_OFF:-$DEFAULT_THERMAL_ABS_THRESH_OFF} ]]; then
-      echo "0" 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
+      echo "0" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
       FAN_ON_OFF_STATE=0
     elif [[ ${TEMPS[-1]} -ge ${THERMAL_ABS_THRESH_ON:-$DEFAULT_THERMAL_ABS_THRESH_ON} ]]; then
       FAN_ON_OFF_STATE=1
     fi
     if [[ ${FAN_ON_OFF_STATE:-$DEFAULT_FAN_ON_OFF_STATE} -eq 1 ]]; then
       if [[ ${TEMPS[-1]} -le ${THERMAL_ABS_THRESH[0]} ]]; then
-        echo ${DC_ABS_THRESH[0]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
+        echo "${DC_ABS_THRESH[0]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
       elif [[ ${TEMPS[-1]} -ge ${THERMAL_ABS_THRESH[-1]} ]]; then
-        echo ${DC_ABS_THRESH[-1]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
+        echo "${DC_ABS_THRESH[-1]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
       elif [[ ${#TEMPS[@]} -gt 1 ]]; then
         TEMPS_SUM=0
-        for TEMP in ${TEMPS[@]}; do
-          let TEMPS_SUM+=$TEMP
+        for TEMP in "${TEMPS[@]}"; do
+          (( TEMPS_SUM+=TEMP ))
         done
         # moving mid-point
-        MEAN_TEMP=$((TEMPS_SUM/${#TEMPS[@]}))
-        DEV_MEAN_CRITICAL=$((MEAN_TEMP-CRITICAL_TEMP))
-        X0=${DEV_MEAN_CRITICAL#-}
+        MEAN_TEMP="$((TEMPS_SUM/${#TEMPS[@]}))"
+        DEV_MEAN_CRITICAL="$((MEAN_TEMP-CRITICAL_TEMP))"
+        X0="${DEV_MEAN_CRITICAL#-}"
         # args: x, x0, L, a, b (k=a/b)
-        MODEL=$(function_logistic ${TEMPS[-1]} $X0 ${DC_ABS_THRESH[-1]} 1 10)
+        MODEL=$(function_logistic "${TEMPS[-1]}" "$X0" "${DC_ABS_THRESH[-1]}" 1 10)
         if [[ $MODEL -lt ${DC_ABS_THRESH[0]} ]]; then
-          echo ${DC_ABS_THRESH[0]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
+          echo "${DC_ABS_THRESH[0]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
         elif [[ $MODEL -gt ${DC_ABS_THRESH[-1]} ]]; then
-          echo ${DC_ABS_THRESH[-1]} 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
+          echo "${DC_ABS_THRESH[-1]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
         else
-          echo $MODEL 2> /dev/null > $CHANNEL_FOLDER'duty_cycle'
+          echo "$MODEL" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
         fi
       fi
     fi
@@ -216,13 +218,13 @@ fan_run_thermal () {
 }
 
 fan_startup () {
-  while [[ -d "$CHANNEL_FOLDER" ]]; do
-    if [[ $(cat $CHANNEL_FOLDER'enable') -eq 0 ]]; then
+  while [[ -d $CHANNEL_FOLDER ]]; do
+    if [[ $(cat "$CHANNEL_FOLDER"'enable') -eq 0 ]]; then
       set_default
       break
-    elif [[ $(cat $CHANNEL_FOLDER'enable') -eq 1 ]]; then
+    elif [[ $(cat "$CHANNEL_FOLDER"'enable') -eq 1 ]]; then
       message 'The fan is already enabled. Will disable it.' 'WARNING'
-      echo 0 > $CHANNEL_FOLDER'enable'
+      echo 0 > "$CHANNEL_FOLDER"'enable'
       sleep 1
       set_default
       break
@@ -235,14 +237,15 @@ fan_startup () {
 
 function_logistic () {
   # https://en.wikipedia.org/wiki/Logistic_function
-  local x=$1
-  local x0=$2
-  local L=$3
+  local x x0 L a b equation result
+  x=$1
+  x0=$2
+  L=$3
   # k=a/b
-  local a=$4
-  local b=$5
-  local equation="output=$L/(1+e(-($a/$b)*($x-$x0)));scale=0;output/1"
-  local result=$(echo $equation | bc -lq)
+  a=$4
+  b=$5
+  equation="output=($L)/(1+e(-($a/$b)*($x-$x0)))"
+  result=$(echo "scale=0;$equation;output/1" | bc -lq)
   echo "$result"
 }
 
@@ -258,30 +261,30 @@ pwmchip () {
     end "Unable to access a sysfs interface." 1
   fi
   message "Working with the sysfs interface for the '${PWMCHIP:-$DEFAULT_PWMCHIP}'." 'INFO'
-  message "For reference, your '${PWMCHIP:-$DEFAULT_PWMCHIP}' supports '$(cat "$PWMCHIP_FOLDER"npwm)' channel(s)." 'INFO'
+  message "For reference, your '${PWMCHIP:-$DEFAULT_PWMCHIP}' supports '$(cat "$PWMCHIP_FOLDER"'npwm')' channel(s)." 'INFO'
   CHANNEL_FOLDER="$PWMCHIP_FOLDER${CHANNEL:-$DEFAULT_CHANNEL}/"
 }
 
 set_default () {
   cache 'set_default_duty_cycle'
-  echo 0 2> $CACHE > $CHANNEL_FOLDER'duty_cycle'
-  if [[ ! -z $(cat $CACHE) ]]; then
+  echo 0 2> "$CACHE" > "$CHANNEL_FOLDER"'duty_cycle'
+  if [[ -n $(cat "$CACHE") ]]; then
     # set higher than 0 values to avoid negative ones
-    echo 100 > $CHANNEL_FOLDER'period'
-    echo 10 > $CHANNEL_FOLDER'duty_cycle'
+    echo 100 > "$CHANNEL_FOLDER"'period'
+    echo 10 > "$CHANNEL_FOLDER"'duty_cycle'
   fi
   cache 'set_default_period'
-  echo ${PERIOD:-$DEFAULT_PERIOD} 2> $CACHE > $CHANNEL_FOLDER'period'
-  if [[ ! -z $(cat $CACHE) ]]; then
+  echo "${PERIOD:-$DEFAULT_PERIOD}" 2> "$CACHE" > "$CHANNEL_FOLDER"'period'
+  if [[ -n $(cat "$CACHE") ]]; then
     message "The period provided ('${PERIOD:-$DEFAULT_PERIOD}') is not acceptable." 'WARNING'
     message 'Trying to lower it by 100ns decrements. This may take a while...' 'WARNING'
     local decrement=100
     local rate=$decrement
     until [[ $PERIOD_NEW -le 200 ]]; do
       local PERIOD_NEW=$((PERIOD-rate))
-      > $CACHE
-      echo $PERIOD_NEW 2> $CACHE > $CHANNEL_FOLDER'period'
-      if [[ -z $(cat $CACHE) ]]; then
+      :> "$CACHE"
+      echo $PERIOD_NEW 2> "$CACHE" > "$CHANNEL_FOLDER"'period'
+      if [[ -z $(cat "$CACHE") ]]; then
         break
       fi
       local rate=$((rate+decrement))
@@ -291,15 +294,15 @@ set_default () {
       end 'Unable to set an appropriate value for the period.' 1
     fi
   fi
-  echo 'normal' > $CHANNEL_FOLDER'polarity'
-  message "Default polarity: $(cat $CHANNEL_FOLDER'polarity')" 'INFO'
-  message "Default period: $(cat $CHANNEL_FOLDER'period') ns" 'INFO'
-  message "Default duty cycle: $(cat $CHANNEL_FOLDER'duty_cycle') ns" 'INFO'
+  echo 'normal' > "$CHANNEL_FOLDER"'polarity'
+  message "Default polarity: $(cat "$CHANNEL_FOLDER"'polarity')" 'INFO'
+  message "Default period: $(cat "$CHANNEL_FOLDER"'period') ns" 'INFO'
+  message "Default duty cycle: $(cat "$CHANNEL_FOLDER"'duty_cycle') ns" 'INFO'
 }
 
 thermal_meter () {
   if [[ -f $TEMP_FILE ]]; then
-    local TEMP=$(cat $TEMP_FILE 2> /dev/null)
+    local TEMP; TEMP=$(cat "$TEMP_FILE" 2> /dev/null)
     # TEMP is in millidegrees, so convert to degrees
     echo $((TEMP/1000))
   fi
@@ -307,8 +310,8 @@ thermal_meter () {
 
 thermal_monit () {
   if [[ -d $THERMAL_ROOT && -z $SKIP_THERMAL ]]; then
-    for dir in $THERMAL_ROOT'thermal_zone'*; do
-      if [[ $(cat $dir'/type') =~ ${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE} && -f $dir'/temp' ]]; then
+    for dir in "$THERMAL_ROOT"'thermal_zone'*; do
+      if [[ $(cat "$dir"'/type') =~ ${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE} && -f $dir'/temp' ]]; then
         TEMP_FILE=$dir'/temp'
         message "Found the '${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE}' temperature at '$TEMP_FILE'." 'INFO'
         message "Current '${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE}' temp is: $(($(thermal_meter))) Celsius" 'INFO'
@@ -328,9 +331,9 @@ thermal_monit () {
 unexport_pwmchip_channel () {
   if [[ -d "$CHANNEL_FOLDER" ]]; then
     message "Freeing up the channel '${CHANNEL:-$DEFAULT_CHANNEL}' controlled by the '${PWMCHIP:-$DEFAULT_PWMCHIP}'." 'INFO'
-    echo 0 > $CHANNEL_FOLDER'enable'
+    echo 0 > "$CHANNEL_FOLDER"'enable'
     sleep 1
-    echo 0 > $PWMCHIP_FOLDER'unexport'
+    echo 0 > "$PWMCHIP_FOLDER"'unexport'
     sleep 1
     if [[ ! -d "$CHANNEL_FOLDER" ]]; then
       message "Channel '${CHANNEL:-$DEFAULT_CHANNEL}' was successfully disabled." 'INFO'
