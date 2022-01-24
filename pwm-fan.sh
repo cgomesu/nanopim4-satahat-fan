@@ -531,6 +531,6 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
 done
 
 start
-trap 'interrupt' SIGINT SIGHUP SIGTERM SIGKILL
+trap 'interrupt' INT HUP TERM
 config
 fan_run
