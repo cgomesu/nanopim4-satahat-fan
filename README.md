@@ -25,8 +25,8 @@ The controller was developed with **Armbian OS** but you should be able to run i
 -  12V (.08A-.2A) generic fan (**do not** try to use more than **200mA**)
 
 And software:
--  Kernel: Linux 4.4.231-rk3399
--  OS: Armbian Buster (20.08.9) stable
+-  Kernel: Linux 4.4.213-rk3399
+-  OS: Armbian Buster (21.08.8) stable
 -  GNU bash v5.0.3
 -  bc v1.07.1
 
@@ -80,6 +80,8 @@ Usage:
     -s  int  The MAX SIZE of the TEMPERATURE ARRAY. Interval between data points is set by -l. Default (store last 1min data): 6.
     -t  int  Lowest TEMPERATURE threshold (in Celsius). Lower temps set the fan speed to min. Default: 25
     -T  int  Highest TEMPERATURE threshold (in Celsius). Higher temps set the fan speed to max. Default: 75
+    -u  int  Fan-off TEMPERATURE threshold (in Celsius). Shuts off fan under the specified temperature. Default: 0
+    -U  int  Fan-on TEMPERATURE threshold (in Celsius). Turn on fan control above the specified temperature. Default: 1
 
   If no options are provided, the script will run with default values.
   Defaults have been tested and optimized for the following hardware:
@@ -87,8 +89,8 @@ Usage:
     -  M4 SATA hat
     -  Fan 12V (.08A and .2A)
   And software:
-    -  Kernel: Linux 4.4.231-rk3399
-    -  OS: Armbian Buster (20.08.9) stable
+    -  Kernel: Linux 4.4.213-rk3399
+    -  OS: Armbian Buster (21.08.8) stable
     -  GNU bash v5.0.3
     -  bc v1.07.1
 
@@ -119,6 +121,11 @@ This is free. There is NO WARRANTY. Use at your own risk.
 - Set fan startup to 10 sec
 ```
 ./pwm-fan.sh -F 10
+```
+
+- When using args `-u` and `-U` (introduced by [@araynard](https://github.com/araynard) via [#7](https://github.com/cgomesu/nanopim4-satahat-fan/pull/7)), it is recommended to leave a difference of at least 5°C between them.  In most cases, `-u` can be set to a value slightly higher than the idle temperature *with* the fan, whereas `-U` can be set to a value slightly higher than the idle temperature *without* the fan.
+```
+./pwm-fan.sh -u 45 -U 55
 ```
 
 
