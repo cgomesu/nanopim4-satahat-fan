@@ -33,7 +33,8 @@ CRITICAL_TEMP=100
 PWMCHIP_ROOT='/sys/class/pwm/'
 # path to the thermal dir in the sysfs interface
 THERMAL_ROOT='/sys/class/thermal/'
-# dir where temp files are stored. default caches to memory.
+# dir where temp files are stored. default caches to memory. be careful were you point this to
+# because cache() will delete the directory.
 CACHE_ROOT='/tmp/pwm-fan/'
 # required packages and commands to run the script
 REQUISITES=('bc' 'cat' 'echo' 'mkdir' 'touch' 'trap' 'sleep')
