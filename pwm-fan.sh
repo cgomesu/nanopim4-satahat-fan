@@ -21,7 +21,7 @@ DEFAULT_MONIT_DEVICE='(soc|cpu)'
 DEFAULT_TEMPS_SIZE=6
 DEFAULT_THERMAL_ABS_THRESH_LOW=25
 DEFAULT_THERMAL_ABS_THRESH_HIGH=75
-DEFAULT_FAN_ON_OFF_STATE=1
+DEFAULT_FAN_POWER_STATE=1
 DEFAULT_THERMAL_ABS_THRESH_OFF=0
 DEFAULT_THERMAL_ABS_THRESH_ON=1
 DEFAULT_DC_PERCENT_MIN=25
@@ -186,11 +186,11 @@ fan_run_thermal () {
     fi
     if [[ "${TEMPS[-1]}" -le "${THERMAL_ABS_THRESH_OFF:-$DEFAULT_THERMAL_ABS_THRESH_OFF}" ]]; then
       echo "0" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
-      FAN_ON_OFF_STATE=0
+      FAN_POWER_STATE=0
     elif [[ "${TEMPS[-1]}" -ge "${THERMAL_ABS_THRESH_ON:-$DEFAULT_THERMAL_ABS_THRESH_ON}" ]]; then
-      FAN_ON_OFF_STATE=1
+      FAN_POWER_STATE=1
     fi
-    if [[ "${FAN_ON_OFF_STATE:-$DEFAULT_FAN_ON_OFF_STATE}" -eq 1 ]]; then
+    if [[ "${FAN_POWER_STATE:-$DEFAULT_FAN_POWER_STATE}" -eq 1 ]]; then
       if [[ "${TEMPS[-1]}" -le "${THERMAL_ABS_THRESH[0]}" ]]; then
         echo "${DC_ABS_THRESH[0]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
       elif [[ "${TEMPS[-1]}" -ge "${THERMAL_ABS_THRESH[-1]}" ]]; then
