@@ -245,11 +245,6 @@ function_logistic () {
   echo "$result"
 }
 
-interrupt () {
-  echo ''
-  end 'Received a signal to stop the script.' 0
-}
-
 pwmchip () {
   PWMCHIP_FOLDER="$PWMCHIP_ROOT${PWMCHIP:-$DEFAULT_PWMCHIP}"'/'
   if [[ ! -d "$PWMCHIP_FOLDER" ]]; then
@@ -506,7 +501,7 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
 done
 
 start
-trap 'interrupt' INT HUP TERM
+trap "echo ''; end 'Received a signal to stop the script.' 0" INT HUP TERM
 
 # configuration functions
 pwmchip
