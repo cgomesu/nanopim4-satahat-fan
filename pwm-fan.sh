@@ -16,17 +16,17 @@
 DEFAULT_PWMCHIP='pwmchip1'
 DEFAULT_CHANNEL='pwm0'
 DEFAULT_TIME_STARTUP=60
+DEFAULT_TIME_LOOP=10
+DEFAULT_MONIT_DEVICE='(soc|cpu)'
+DEFAULT_TEMPS_SIZE=6
 DEFAULT_THERMAL_ABS_THRESH_LOW=25
 DEFAULT_THERMAL_ABS_THRESH_HIGH=75
+DEFAULT_FAN_ON_OFF_STATE=1
 DEFAULT_THERMAL_ABS_THRESH_OFF=0
 DEFAULT_THERMAL_ABS_THRESH_ON=1
-DEFAULT_FAN_ON_OFF_STATE=1
 DEFAULT_DC_PERCENT_MIN=25
 DEFAULT_DC_PERCENT_MAX=100
-DEFAULT_TEMPS_SIZE=6
-DEFAULT_TIME_LOOP=10
 DEFAULT_PERIOD=25000000
-DEFAULT_MONIT_DEVICE='(soc|cpu)'
 # critical temperature for the logistic model. used to compute deviance from the mean over time.
 CRITICAL_TEMP=100
 # path to the pwm dir in the sysfs interface
@@ -35,7 +35,7 @@ PWMCHIP_ROOT='/sys/class/pwm/'
 THERMAL_ROOT='/sys/class/thermal/'
 # dir where temp files are stored. default caches to memory.
 CACHE_ROOT='/tmp/pwm-fan/'
-# required packages to run the script
+# required packages and commands to run the script
 REQUISITES=('bc' 'cat' 'echo' 'mkdir' 'touch' 'trap' 'sleep')
 
 start () {
@@ -72,17 +72,18 @@ cleanup () {
 }
 
 cache () {
+  local FILENAME
   if [[ -z "$1" ]]; then
     message 'Cache file was not specified. Assuming generic.' 'INFO'
-    local FILENAME='generic'
+    FILENAME='generic'
   else
-    local FILENAME="$1"
+    FILENAME="$1"
   fi
-  if [[ ! -d $CACHE_ROOT ]]; then
+  if [[ ! -d "$CACHE_ROOT" ]]; then
     mkdir "$CACHE_ROOT"
   fi
   CACHE="$CACHE_ROOT$FILENAME.cache"
-  if [[ ! -f $CACHE ]]; then
+  if [[ ! -f "$CACHE" ]]; then
     touch "$CACHE"
   else
     :> "$CACHE"
@@ -101,33 +102,34 @@ check_requisites () {
 }
 
 export_pwmchip_channel () {
-  if [[ ! -d $CHANNEL_FOLDER ]]; then
+  if [[ ! -d "$CHANNEL_FOLDER" ]]; then
     local EXPORT
-    EXPORT=$PWMCHIP_FOLDER'export'
+    EXPORT="$PWMCHIP_FOLDER"'export'
     cache 'export'
     echo 0 2> "$CACHE" > "$EXPORT"
     if [[ -n $(cat "$CACHE") ]]; then
       # on error, parse output
+      local ERR_MSG
       if [[ $(cat "$CACHE") =~ (P|p)ermission\ denied ]]; then
         message "This user does not have permission to use channel '${CHANNEL:-$DEFAULT_CHANNEL}'." 'ERROR'
         if [[ -n $(command -v stat) ]]; then
-          message "Export is owned by user '$(stat -c '%U' "$EXPORT")' and group '$(stat -c '%G' "$EXPORT")'." 'WARNING'
+          message "Export is owned by user '$(stat -c '%U' "$EXPORT" 2>/dev/null)' and group '$(stat -c '%G' "$EXPORT" 2>/dev/null)'." 'WARNING'
         fi
-        local ERR_MSG='User permission error while setting channel.'
+        ERR_MSG='User permission error while setting channel.'
       elif [[ $(cat "$CACHE") =~ (D|d)evice\ or\ resource\ busy ]]; then
         message "It seems the pin is already in use. Cannot write to export." 'ERROR'
-        local ERR_MSG="'${PWMCHIP:-$DEFAULT_PWMCHIP}' was busy while setting the channel."
+        ERR_MSG="'${PWMCHIP:-$DEFAULT_PWMCHIP}' was busy while setting the channel."
       else
         message "There was an unknown error while setting the channel '${CHANNEL:-$DEFAULT_CHANNEL}'." 'ERROR'
         if [[ $(cat "$CACHE") =~ \ ([^\:]+)$ ]]; then
           message "${BASH_REMATCH[1]}." 'WARNING'
         fi
-        local ERR_MSG='Unknown error while setting channel.'
+        ERR_MSG='Unknown error while setting channel.'
       fi
       end "$ERR_MSG" 1
     fi
     sleep 1
-  elif [[ -d $CHANNEL_FOLDER ]]; then
+  elif [[ -d "$CHANNEL_FOLDER" ]]; then
     message "'${CHANNEL:-$DEFAULT_CHANNEL}' channel is already accessible." 'WARNING'
   fi
 }
@@ -150,13 +152,13 @@ fan_initialization () {
   message "Running fan at full speed for the next ${TIME_STARTUP:-$DEFAULT_TIME_STARTUP} seconds..." 'INFO'
   echo 1 > "$CHANNEL_FOLDER"'enable'
   sleep "${TIME_STARTUP:-$DEFAULT_TIME_STARTUP}"
-  echo $((MAX_DUTY_CYCLE/2)) > "$CHANNEL_FOLDER"'duty_cycle'
+  echo "$((MAX_DUTY_CYCLE/2))" > "$CHANNEL_FOLDER"'duty_cycle'
   message "Initialization done. Duty cycle at 50% now: '$((MAX_DUTY_CYCLE/2))' ns." 'INFO'
   sleep 1
 }
 
 fan_run () {
-  if [[ $THERMAL_STATUS -eq 0 ]]; then
+  if [[ "$THERMAL_STATUS" -eq 0 ]]; then
     fan_run_max
   else
     fan_run_thermal
@@ -166,7 +168,7 @@ fan_run () {
 fan_run_max () {
   message "Running fan at full speed until stopped (Ctrl+C or kill '$$')..." 'INFO'
   while true; do
-    echo $MAX_DUTY_CYCLE > "$CHANNEL_FOLDER"'duty_cycle'
+    echo "$MAX_DUTY_CYCLE" > "$CHANNEL_FOLDER"'duty_cycle'
     # run every so often to make sure it is maxed
     sleep 120
   done
@@ -179,21 +181,21 @@ fan_run_thermal () {
   TEMPS=()
   while true; do
     TEMPS+=("$(thermal_meter)")
-    if [[ ${#TEMPS[@]} -gt ${TEMPS_SIZE:-$DEFAULT_TEMPS_SIZE} ]]; then
+    if [[ "${#TEMPS[@]}" -gt "${TEMPS_SIZE:-$DEFAULT_TEMPS_SIZE}" ]]; then
       TEMPS=("${TEMPS[@]:1}")
     fi
-    if [[ ${TEMPS[-1]} -le ${THERMAL_ABS_THRESH_OFF:-$DEFAULT_THERMAL_ABS_THRESH_OFF} ]]; then
+    if [[ "${TEMPS[-1]}" -le "${THERMAL_ABS_THRESH_OFF:-$DEFAULT_THERMAL_ABS_THRESH_OFF}" ]]; then
       echo "0" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
       FAN_ON_OFF_STATE=0
-    elif [[ ${TEMPS[-1]} -ge ${THERMAL_ABS_THRESH_ON:-$DEFAULT_THERMAL_ABS_THRESH_ON} ]]; then
+    elif [[ "${TEMPS[-1]}" -ge "${THERMAL_ABS_THRESH_ON:-$DEFAULT_THERMAL_ABS_THRESH_ON}" ]]; then
       FAN_ON_OFF_STATE=1
     fi
-    if [[ ${FAN_ON_OFF_STATE:-$DEFAULT_FAN_ON_OFF_STATE} -eq 1 ]]; then
-      if [[ ${TEMPS[-1]} -le ${THERMAL_ABS_THRESH[0]} ]]; then
+    if [[ "${FAN_ON_OFF_STATE:-$DEFAULT_FAN_ON_OFF_STATE}" -eq 1 ]]; then
+      if [[ "${TEMPS[-1]}" -le "${THERMAL_ABS_THRESH[0]}" ]]; then
         echo "${DC_ABS_THRESH[0]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
-      elif [[ ${TEMPS[-1]} -ge ${THERMAL_ABS_THRESH[-1]} ]]; then
+      elif [[ "${TEMPS[-1]}" -ge "${THERMAL_ABS_THRESH[-1]}" ]]; then
         echo "${DC_ABS_THRESH[-1]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
-      elif [[ ${#TEMPS[@]} -gt 1 ]]; then
+      elif [[ "${#TEMPS[@]}" -gt 1 ]]; then
         TEMPS_SUM=0
         for TEMP in "${TEMPS[@]}"; do
           (( TEMPS_SUM+=TEMP ))
@@ -204,9 +206,9 @@ fan_run_thermal () {
         X0="${DEV_MEAN_CRITICAL#-}"
         # args: x, x0, L, a, b (k=a/b)
         MODEL=$(function_logistic "${TEMPS[-1]}" "$X0" "${DC_ABS_THRESH[-1]}" 1 10)
-        if [[ $MODEL -lt ${DC_ABS_THRESH[0]} ]]; then
+        if [[ "$MODEL" -lt "${DC_ABS_THRESH[0]}" ]]; then
           echo "${DC_ABS_THRESH[0]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
-        elif [[ $MODEL -gt ${DC_ABS_THRESH[-1]} ]]; then
+        elif [[ "$MODEL" -gt "${DC_ABS_THRESH[-1]}" ]]; then
           echo "${DC_ABS_THRESH[-1]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
         else
           echo "$MODEL" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
@@ -218,16 +220,14 @@ fan_run_thermal () {
 }
 
 fan_startup () {
-  while [[ -d $CHANNEL_FOLDER ]]; do
+  while [[ -d "$CHANNEL_FOLDER" ]]; do
     if [[ $(cat "$CHANNEL_FOLDER"'enable') -eq 0 ]]; then
-      set_default
-      break
+      set_default; break
     elif [[ $(cat "$CHANNEL_FOLDER"'enable') -eq 1 ]]; then
       message 'The fan is already enabled. Will disable it.' 'WARNING'
       echo 0 > "$CHANNEL_FOLDER"'enable'
       sleep 1
-      set_default
-      break
+      set_default; break
     else
       message 'Unable to read the fan enable status.' 'ERROR'
       end 'Bad fan status.' 1
@@ -237,15 +237,11 @@ fan_startup () {
 
 function_logistic () {
   # https://en.wikipedia.org/wiki/Logistic_function
-  local x x0 L a b equation result
-  x=$1
-  x0=$2
-  L=$3
   # k=a/b
-  a=$4
-  b=$5
+  local x x0 L a b equation result
+  x="$1"; x0="$2"; L="$3"; a="$4"; b="$5"
   equation="output=($L)/(1+e(-($a/$b)*($x-$x0)))"
-  result=$(echo "scale=0;$equation;output/1" | bc -lq)
+  result=$(echo "scale=0;$equation;output/1" | bc -lq 2>/dev/null)
   echo "$result"
 }
 
@@ -255,14 +251,14 @@ interrupt () {
 }
 
 pwmchip () {
-  PWMCHIP_FOLDER="$PWMCHIP_ROOT${PWMCHIP:-$DEFAULT_PWMCHIP}/"
+  PWMCHIP_FOLDER="$PWMCHIP_ROOT${PWMCHIP:-$DEFAULT_PWMCHIP}"'/'
   if [[ ! -d "$PWMCHIP_FOLDER" ]]; then
     message "The sysfs interface for the '${PWMCHIP:-$DEFAULT_PWMCHIP}' is not accessible." 'ERROR'
     end "Unable to access a sysfs interface." 1
   fi
   message "Working with the sysfs interface for the '${PWMCHIP:-$DEFAULT_PWMCHIP}'." 'INFO'
   message "For reference, your '${PWMCHIP:-$DEFAULT_PWMCHIP}' supports '$(cat "$PWMCHIP_FOLDER"'npwm')' channel(s)." 'INFO'
-  CHANNEL_FOLDER="$PWMCHIP_FOLDER${CHANNEL:-$DEFAULT_CHANNEL}/"
+  CHANNEL_FOLDER="$PWMCHIP_FOLDER${CHANNEL:-$DEFAULT_CHANNEL}"'/'
 }
 
 set_default () {
@@ -278,19 +274,19 @@ set_default () {
   if [[ -n $(cat "$CACHE") ]]; then
     message "The period provided ('${PERIOD:-$DEFAULT_PERIOD}') is not acceptable." 'WARNING'
     message 'Trying to lower it by 100ns decrements. This may take a while...' 'WARNING'
-    local decrement=100
-    local rate=$decrement
-    until [[ $PERIOD_NEW -le 200 ]]; do
-      local PERIOD_NEW=$((PERIOD-rate))
+    local decrement rate PERIOD_NEW
+    decrement=100; rate=$decrement
+    until [[ "$PERIOD_NEW" -le 200 ]]; do
+      PERIOD_NEW=$((PERIOD-rate))
       :> "$CACHE"
-      echo $PERIOD_NEW 2> "$CACHE" > "$CHANNEL_FOLDER"'period'
+      echo "$PERIOD_NEW" 2> "$CACHE" > "$CHANNEL_FOLDER"'period'
       if [[ -z $(cat "$CACHE") ]]; then
         break
       fi
-      local rate=$((rate+decrement))
+      rate=$((rate+decrement))
     done
-    PERIOD=$PERIOD_NEW
-    if [[ $PERIOD -le 100 ]]; then
+    PERIOD="$PERIOD_NEW"
+    if [[ "$PERIOD" -le 100 ]]; then
       end 'Unable to set an appropriate value for the period.' 1
     fi
   fi
@@ -301,18 +297,18 @@ set_default () {
 }
 
 thermal_meter () {
-  if [[ -f $TEMP_FILE ]]; then
+  if [[ -f "$TEMP_FILE" ]]; then
     local TEMP; TEMP=$(cat "$TEMP_FILE" 2> /dev/null)
     # TEMP is in millidegrees, so convert to degrees
-    echo $((TEMP/1000))
+    echo "$((TEMP/1000))"
   fi
 }
 
 thermal_monit () {
-  if [[ -d $THERMAL_ROOT && -z $SKIP_THERMAL ]]; then
+  if [[ -d "$THERMAL_ROOT" && -z "$SKIP_THERMAL" ]]; then
     for dir in "$THERMAL_ROOT"'thermal_zone'*; do
-      if [[ $(cat "$dir"'/type') =~ ${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE} && -f $dir'/temp' ]]; then
-        TEMP_FILE=$dir'/temp'
+      if [[ $(cat "$dir"'/type') =~ ${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE} && -f "$dir"'/temp' ]]; then
+        TEMP_FILE="$dir"'/temp'
         message "Found the '${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE}' temperature at '$TEMP_FILE'." 'INFO'
         message "Current '${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE}' temp is: $(($(thermal_meter))) Celsius" 'INFO'
         message "Setting fan to monitor the '${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE}' temperature." 'INFO'
@@ -349,7 +345,7 @@ usage() {
   echo ''
   echo 'Usage:'
   echo ''
-  echo "$0" '[OPTIONS]'
+  echo "$0 [OPTIONS]"
   echo ''
   echo '  Options:'
   echo '    -c  str  Name of the PWM CHANNEL (e.g., pwm0, pwm1). Default: pwm0'
@@ -393,7 +389,7 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
   case ${OPT} in
     c)
       CHANNEL="$OPTARG"
-      if [[ ! $CHANNEL =~ ^pwm[0-9]+$ ]]; then
+      if [[ ! "$CHANNEL" =~ ^pwm[0-9]+$ ]]; then
         message "The value for the '-c' argument ($CHANNEL) is invalid." 'ERROR'
         message 'The name of the pwm channel must contain pwm and at least one integer (pwm0).' 'ERROR'
         exit 1
@@ -401,7 +397,7 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
       ;;
     C)
       PWMCHIP="$OPTARG"
-      if [[ ! $PWMCHIP =~ ^pwmchip[0-9]+$ ]]; then
+      if [[ ! "$PWMCHIP" =~ ^pwmchip[0-9]+$ ]]; then
         message "The value for the '-C' argument ($PWMCHIP) is invalid." 'ERROR'
         message 'The name of the pwm controller must contain pwmchip and at least one integer (pwmchip1).' 'ERROR'
         exit 1
@@ -409,7 +405,7 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
       ;;
     d)
       DC_PERCENT_MIN="$OPTARG"
-      if [[ ! $DC_PERCENT_MIN =~ ^[0-4]?[0-9]$ ]]; then
+      if [[ ! "$DC_PERCENT_MIN" =~ ^[0-4]?[0-9]$ ]]; then
         message "The value for the '-d' argument ($DC_PERCENT_MIN) is invalid." 'ERROR'
         message 'The lowest duty cycle threshold must be an integer between 0 and 49.' 'ERROR'
         exit 1
@@ -417,7 +413,7 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
       ;;
     D)
       DC_PERCENT_MAX="$OPTARG"
-      if [[ ! $DC_PERCENT_MAX =~ ^([5-9][0-9]|100)$ ]]; then
+      if [[ ! "$DC_PERCENT_MAX" =~ ^([5-9][0-9]|100)$ ]]; then
         message "The value for the '-D' argument ($DC_PERCENT_MAX) is invalid." 'ERROR'
         message 'The highest duty cycle threshold must be an integer between 50 and 100.' 'ERROR'
         exit 1
@@ -428,7 +424,7 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
       ;;
     F)
       TIME_STARTUP="$OPTARG"
-      if [[ ! $TIME_STARTUP =~ ^[0-9]+$ ]]; then
+      if [[ ! "$TIME_STARTUP" =~ ^[0-9]+$ ]]; then
         message "The value for the '-F' argument ($TIME_STARTUP) is invalid." 'ERROR'
         message 'The time to run the fan at full speed during startup must be an integer.' 'ERROR'
         exit 1
@@ -440,7 +436,7 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
       ;;
     l)
       TIME_LOOP="$OPTARG"
-      if [[ ! $TIME_LOOP =~ ^[0-9]+$ ]]; then
+      if [[ ! "$TIME_LOOP" =~ ^[0-9]+$ ]]; then
         message "The value for the '-l' argument ($TIME_LOOP) is invalid." 'ERROR'
         message 'The time to loop thermal reads must be an integer.' 'ERROR'
         exit 1
@@ -451,7 +447,7 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
       ;;
     p)
       PERIOD="$OPTARG"
-      if [[ ! $PERIOD =~ ^[0-9]+$ ]]; then
+      if [[ ! "$PERIOD" =~ ^[0-9]+$ ]]; then
         message "The value for the '-p' argument ($PERIOD) is invalid." 'ERROR'
         message 'The period must be an integer.' 'ERROR'
         exit 1
@@ -459,7 +455,7 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
       ;;
     s)
       TEMPS_SIZE="$OPTARG"
-      if [[ ! $TEMPS_SIZE =~ ^[0-9]+$ ]]; then
+      if [[ ! "$TEMPS_SIZE" =~ ^[0-9]+$ ]]; then
         message "The value for the '-s' argument ($TEMPS_SIZE) is invalid." 'ERROR'
         message 'The max size of the temperature array must be an integer.' 'ERROR'
         exit 1
@@ -467,7 +463,7 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
       ;;
     t)
       THERMAL_ABS_THRESH_LOW="$OPTARG"
-      if [[ ! $THERMAL_ABS_THRESH_LOW =~ ^[0-5]?[0-9]$ ]]; then
+      if [[ ! "$THERMAL_ABS_THRESH_LOW" =~ ^[0-5]?[0-9]$ ]]; then
         message "The value for the '-t' argument ($THERMAL_ABS_THRESH_LOW) is invalid." 'ERROR'
         message 'The lowest temperature threshold must be an integer between 0 and 59.' 'ERROR'
         exit 1
@@ -475,7 +471,7 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
       ;;
     T)
       THERMAL_ABS_THRESH_HIGH="$OPTARG"
-      if [[ ! $THERMAL_ABS_THRESH_HIGH =~ ^([6-9][0-9]|1[0-1][0-9]|120)$ ]]; then
+      if [[ ! "$THERMAL_ABS_THRESH_HIGH" =~ ^([6-9][0-9]|1[0-1][0-9]|120)$ ]]; then
         message "The value for the '-T' argument ($THERMAL_ABS_THRESH_HIGH) is invalid." 'ERROR'
         message 'The highest temperature threshold must be an integer between 60 and 120.' 'ERROR'
         exit 1
@@ -483,7 +479,7 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
       ;;
     u)
       THERMAL_ABS_THRESH_OFF="$OPTARG"
-      if [[ ! $THERMAL_ABS_THRESH_OFF =~ ^[0-5]?[0-9]$ ]]; then
+      if [[ ! "$THERMAL_ABS_THRESH_OFF" =~ ^[0-5]?[0-9]$ ]]; then
         message "The value for the '-u' argument ($THERMAL_ABS_THRESH_OFF) is invalid." 'ERROR'
         message 'The OFF temperature threshold must be an integer between 0 and 59.' 'ERROR'
         exit 1
@@ -491,7 +487,7 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
       ;;
     U)
       THERMAL_ABS_THRESH_ON="$OPTARG"
-      if [[ $THERMAL_ABS_THRESH_ON -le $THERMAL_ABS_THRESH_OFF || ! $THERMAL_ABS_THRESH_ON =~ ^[0-9]+$ ]]; then
+      if [[ "$THERMAL_ABS_THRESH_ON" -le "$THERMAL_ABS_THRESH_OFF" || ! "$THERMAL_ABS_THRESH_ON" =~ ^[0-9]+$ ]]; then
         message "The value for the '-U' argument ($THERMAL_ABS_THRESH_ON) is invalid." 'ERROR'
         message 'The ON temperature threshold (-U) must be an integer strictly greater than the OFF temperature threshold (-u).' 'ERROR'
         exit 1
