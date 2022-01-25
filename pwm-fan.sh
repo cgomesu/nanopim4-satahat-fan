@@ -357,7 +357,7 @@ usage() {
   echo '    -t  int  Lowest TEMPERATURE threshold (in Celsius). Lower temps set the fan speed to min. Default: 25'
   echo '    -T  int  Highest TEMPERATURE threshold (in Celsius). Higher temps set the fan speed to max. Default: 75'
   echo '    -u  int  Fan-off TEMPERATURE threshold (in Celsius). Shuts off fan under the specified temperature. Default: 0'
-  echo '    -U  int  Fan-On TEMPERATURE threshold (in Celsius). Turn on fan control above the specified temperature. Default: 1'
+  echo '    -U  int  Fan-on TEMPERATURE threshold (in Celsius). Turn on fan control above the specified temperature. Default: 1'
   echo ''
   echo '  If no options are provided, the script will run with default values.'
   echo '  Defaults have been tested and optimized for the following hardware:'
