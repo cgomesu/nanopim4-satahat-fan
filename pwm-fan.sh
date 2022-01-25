@@ -94,7 +94,7 @@ check_requisites () {
   message "Checking requisites." 'INFO'
   for cmd in "${REQUISITES[@]}"; do
     if [[ -z $(command -v "$cmd") ]]; then
-      message "The following program is not installed or cannot be found in this users \$PATH: '$cmd'. Fix it and try again." 'ERROR'
+      message "The following program is not installed or cannot be found in this users \$PATH: $cmd. Fix it and try again." 'ERROR'
       end "Missing important packages. Cannot continue." 1
     fi
   done
@@ -153,7 +153,7 @@ fan_initialization () {
   echo 1 > "$CHANNEL_FOLDER"'enable'
   sleep "${TIME_STARTUP:-$DEFAULT_TIME_STARTUP}"
   echo "$((MAX_DUTY_CYCLE/2))" > "$CHANNEL_FOLDER"'duty_cycle'
-  message "Initialization done. Duty cycle at 50% now: '$((MAX_DUTY_CYCLE/2))' ns." 'INFO'
+  message "Initialization done. Duty cycle at 50% now: $((MAX_DUTY_CYCLE/2)) ns." 'INFO'
   sleep 1
 }
 
