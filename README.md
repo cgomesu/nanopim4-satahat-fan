@@ -46,11 +46,8 @@ cd /opt
 git clone https://github.com/cgomesu/nanopim4-satahat-fan.git
 cd nanopim4-satahat-fan
 
-# Allow the script to be executed
-chmod +x pwm-fan.sh
-
 # Test the script
-./pwm-fan.sh
+./pwm-fan.sh -F 10
 
 # Check for any error messages
 # When done, press Ctrl+C after to send a SIGINT and stop the script
