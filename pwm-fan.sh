@@ -242,7 +242,7 @@ function_logistic () {
   local x x0 L a b equation result
   x="$1"; x0="$2"; L="$3"; a="$4"; b="$5"
   equation="output=($L)/(1+e(-($a/$b)*($x-$x0)))"
-  result=$(echo "scale=0;$equation;output/1" | bc -lq 2>/dev/null)
+  result=$(echo "scale=4;$equation;scale=0;output/1" | bc -lq 2>/dev/null)
   echo "$result"
 }
 
