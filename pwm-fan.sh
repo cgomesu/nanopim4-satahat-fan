@@ -28,7 +28,7 @@ DEFAULT_DC_PERCENT_MIN=25
 DEFAULT_DC_PERCENT_MAX=100
 DEFAULT_PERIOD=25000000
 # critical temperature for the logistic model. used to compute deviance from the mean over time.
-CRITICAL_TEMP=100
+CRITICAL_TEMP=75
 # path to the pwm dir in the sysfs interface
 PWMCHIP_ROOT='/sys/class/pwm/'
 # path to the thermal dir in the sysfs interface
