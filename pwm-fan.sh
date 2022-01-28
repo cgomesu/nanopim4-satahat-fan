@@ -11,30 +11,40 @@
 # This is free. There is NO WARRANTY. Use at your own risk.
 ###############################################################################
 
-# DEFAULT_ variables are used in substitutions in case of missing the non-default variable
+# DEFAULT_ variables are used in substitutions in case of missing the non-default variable.
 # DEFAULT_ variables can be overriden by corresponding CLI args
 DEFAULT_PWMCHIP='pwmchip1'
 DEFAULT_CHANNEL='pwm0'
-DEFAULT_TIME_STARTUP=60
+# setting the startup time to low values might affect the reliability of thermal controllers
+DEFAULT_TIME_STARTUP=120
 DEFAULT_TIME_LOOP=10
 DEFAULT_MONIT_DEVICE='(soc|cpu)'
 DEFAULT_TEMPS_SIZE=6
 DEFAULT_THERMAL_ABS_THRESH_LOW=25
 DEFAULT_THERMAL_ABS_THRESH_HIGH=75
-DEFAULT_FAN_POWER_STATE=1
 DEFAULT_THERMAL_ABS_THRESH_OFF=0
 DEFAULT_THERMAL_ABS_THRESH_ON=1
 DEFAULT_DC_PERCENT_MIN=25
 DEFAULT_DC_PERCENT_MAX=100
 DEFAULT_PERIOD=25000000
-# critical temperature for the logistic model. used to compute deviance from the mean over time.
-CRITICAL_TEMP=75
+DEFAULT_THERMAL_CONTROLLER='logistic'
+# tunnable controller parameters
+LOGISTIC_TEMP_CRITICAL=75
+LOGISTIC_a=1
+LOGISTIC_b=10
+# uncomment and edit PID_THERMAL_IDEAL to set a fixed IDEAL temperature for the PID controller;
+# otherwise, the initial temperature after startup (+3°C) is used as reference.
+#PID_THERMAL_IDEAL=45
+# https://en.wikipedia.org/wiki/PID_controller#Loop_tuning
+PID_Kp=$((DEFAULT_PERIOD/200))
+PID_Ki=$((DEFAULT_PERIOD/3000))
+PID_Kd=$((DEFAULT_PERIOD/600))
 # path to the pwm dir in the sysfs interface
 PWMCHIP_ROOT='/sys/class/pwm/'
 # path to the thermal dir in the sysfs interface
 THERMAL_ROOT='/sys/class/thermal/'
 # dir where temp files are stored. default caches to memory. be careful were you point this to
-# because cache() will delete the directory.
+# because cleanup() will delete the directory.
 CACHE_ROOT='/tmp/pwm-fan/'
 # required packages and commands to run the script
 REQUISITES=('bc' 'cat' 'echo' 'mkdir' 'touch' 'trap' 'sleep')
@@ -182,37 +192,25 @@ fan_run_thermal () {
   TEMPS=()
   while true; do
     TEMPS+=("$(thermal_meter)")
+    # keep the array size lower or equal to TEMPS_SIZE
     if [[ "${#TEMPS[@]}" -gt "${TEMPS_SIZE:-$DEFAULT_TEMPS_SIZE}" ]]; then
       TEMPS=("${TEMPS[@]:1}")
     fi
+    # determine if the fan should be OFF or ON
     if [[ "${TEMPS[-1]}" -le "${THERMAL_ABS_THRESH_OFF:-$DEFAULT_THERMAL_ABS_THRESH_OFF}" ]]; then
       echo "0" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
-      FAN_POWER_STATE=0
     elif [[ "${TEMPS[-1]}" -ge "${THERMAL_ABS_THRESH_ON:-$DEFAULT_THERMAL_ABS_THRESH_ON}" ]]; then
-      FAN_POWER_STATE=1
-    fi
-    if [[ "${FAN_POWER_STATE:-$DEFAULT_FAN_POWER_STATE}" -eq 1 ]]; then
+      # only use a controller when within lower and upper thermal thresholds
       if [[ "${TEMPS[-1]}" -le "${THERMAL_ABS_THRESH[0]}" ]]; then
         echo "${DC_ABS_THRESH[0]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
       elif [[ "${TEMPS[-1]}" -ge "${THERMAL_ABS_THRESH[-1]}" ]]; then
         echo "${DC_ABS_THRESH[-1]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
+      # the thermal array must be greater than one to use any controller, so skip the first iteration
       elif [[ "${#TEMPS[@]}" -gt 1 ]]; then
-        TEMPS_SUM=0
-        for TEMP in "${TEMPS[@]}"; do
-          (( TEMPS_SUM+=TEMP ))
-        done
-        # moving mid-point
-        MEAN_TEMP="$((TEMPS_SUM/${#TEMPS[@]}))"
-        DEV_MEAN_CRITICAL="$((MEAN_TEMP-CRITICAL_TEMP))"
-        X0="${DEV_MEAN_CRITICAL#-}"
-        # args: x, x0, L, a, b (k=a/b)
-        MODEL=$(function_logistic "${TEMPS[-1]}" "$X0" "${DC_ABS_THRESH[-1]}" 1 10)
-        if [[ "$MODEL" -lt "${DC_ABS_THRESH[0]}" ]]; then
-          echo "${DC_ABS_THRESH[0]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
-        elif [[ "$MODEL" -gt "${DC_ABS_THRESH[-1]}" ]]; then
-          echo "${DC_ABS_THRESH[-1]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
-        else
-          echo "$MODEL" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
+        if [[ "${THERMAL_CONTROLLER:-$DEFAULT_THERMAL_CONTROLLER}" == "logistic" ]]; then
+          controller_logistic
+        elif [[ "${THERMAL_CONTROLLER:-$DEFAULT_THERMAL_CONTROLLER}" == "pid" ]]; then
+          controller_pid
         fi
       fi
     fi
@@ -236,6 +234,7 @@ fan_startup () {
   done
 }
 
+# takes 'x' 'x0' 'L' 'a' 'b' as arguments
 function_logistic () {
   # https://en.wikipedia.org/wiki/Logistic_function
   # k=a/b
@@ -244,6 +243,61 @@ function_logistic () {
   equation="output=($L)/(1+e(-($a/$b)*($x-$x0)))"
   result=$(echo "scale=4;$equation;scale=0;output/1" | bc -lq 2>/dev/null)
   echo "$result"
+}
+
+# logic for the logistic controller
+controller_logistic () {
+  local temp temps_sum mean_temp dev_mean_critical x0 model
+  temps_sum=0
+  for temp in "${TEMPS[@]}"; do
+    ((temps_sum+=temp))
+  done
+  # moving mid-point
+  mean_temp="$((temps_sum/${#TEMPS[@]}))"
+  dev_mean_critical="$((mean_temp-LOGISTIC_TEMP_CRITICAL))"
+  x0="${dev_mean_critical#-}"
+  # function_logistic args: 'x' 'x0' 'L' 'a' 'b'
+  # the model is adjusted to ns and bound to the upper (raw) DC threshold value because of L="${DC_ABS_THRESH[-1]}"
+  model=$(function_logistic "${TEMPS[-1]}" "$x0" "${DC_ABS_THRESH[-1]}" "$LOGISTIC_a" "$LOGISTIC_b")
+  # bound to duty cycle thresholds first in case model-based value is outside the valid range
+  if [[ "$model" -lt "${DC_ABS_THRESH[0]}" ]]; then
+    echo "${DC_ABS_THRESH[0]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
+  elif [[ "$model" -gt "${DC_ABS_THRESH[-1]}" ]]; then
+    echo "${DC_ABS_THRESH[-1]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
+  else
+    echo "$model" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
+  fi
+}
+
+# takes 'p_error' 'i_error' 'd_error' 'Kp' 'Ki' 'Kd' as arguments
+function_pid () {
+  # https://en.wikipedia.org/wiki/PID_controller
+  local p_e i_e d_e Kp Ki Kd equation result
+  p_e="$1"; i_e="$2"; d_e="$3"; Kp="$4"; Ki="$5"; Kd="$6"
+  equation="output=($Kp*$p_e)+($Ki*$i_e)+($Kd*$d_e)"
+  result=$(echo "scale=4;$equation;scale=0;output/1" | bc -lq 2>/dev/null)
+  echo "$result"
+}
+
+# logic for the PID controller
+controller_pid () {
+  # i_error cannot be local to be cumulative since it was first declared.
+  local p_error d_error model duty_cycle
+  p_error="$((${TEMPS[-1]}-${PID_THERMAL_IDEAL:-$((THERMAL_INITIAL+3))}))"
+  i_error="$((${i_error:-0}+p_error))"
+  d_error="$((${TEMPS[-1]}-${TEMPS[-2]}))"
+  # TODO: Kp, Ki, and Kd could be auto tunned here; currently, they are not declared and PID_ vars are used.
+  # function_pid args: 'p_error' 'i_error' 'd_error' 'Kp' 'Ki' 'Kd'
+  model="$(function_pid "$p_error" "$i_error" "$d_error" "${Kp:-$PID_Kp}" "${Ki:-$PID_Ki}" "${Kd:-$PID_Kd}")"
+  duty_cycle="$(cat "$CHANNEL_FOLDER"'duty_cycle')"
+  # bound to duty cycle thresholds first in case model-based value is outside the valid range
+  if [[ $((duty_cycle+model)) -lt "${DC_ABS_THRESH[0]}" ]]; then
+    echo "${DC_ABS_THRESH[0]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
+  elif [[ $((duty_cycle+model)) -gt "${DC_ABS_THRESH[-1]}" ]]; then
+    echo "${DC_ABS_THRESH[-1]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
+  else
+    echo $((duty_cycle+model)) 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
+  fi
 }
 
 pwmchip () {
@@ -305,8 +359,9 @@ thermal_monit () {
     for dir in "$THERMAL_ROOT"'thermal_zone'*; do
       if [[ $(cat "$dir"'/type') =~ ${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE} && -f "$dir"'/temp' ]]; then
         TEMP_FILE="$dir"'/temp'
+        THERMAL_INITIAL="$(thermal_meter)"
         message "Found the '${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE}' temperature at '$TEMP_FILE'." 'INFO'
-        message "Current '${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE}' temp is: $(($(thermal_meter))) Celsius" 'INFO'
+        message "Current '${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE}' temp is: $THERMAL_INITIAL Celsius" 'INFO'
         message "Setting fan to monitor the '${MONIT_DEVICE:-$DEFAULT_MONIT_DEVICE}' temperature." 'INFO'
         THERMAL_STATUS=1
         return
@@ -353,6 +408,7 @@ usage() {
   echo '    -h       Show this HELP message.'
   echo '    -l  int  TIME (in seconds) to LOOP thermal reads. Lower means higher resolution but uses ever more resources. Default: 10'
   echo '    -m  str  Name of the DEVICE to MONITOR the temperature in the thermal sysfs interface. Default: (soc|cpu)'
+  echo '    -o  str  Name of the THERMAL CONTROLLER. Options: logistic (default), pid.'
   echo '    -p  int  The fan PERIOD (in nanoseconds). Default (25kHz): 25000000.'
   echo '    -s  int  The MAX SIZE of the TEMPERATURE ARRAY. Interval between data points is set by -l. Default (store last 1min data): 6.'
   echo '    -t  int  Lowest TEMPERATURE threshold (in Celsius). Lower temps set the fan speed to min. Default: 25'
@@ -381,7 +437,7 @@ usage() {
 
 ############
 # main logic
-while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
+while getopts 'c:C:d:D:fF:hl:m:o:p:s:t:T:u:U:' OPT; do
   case ${OPT} in
     c)
       CHANNEL="$OPTARG"
@@ -441,6 +497,14 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
     m)
       MONIT_DEVICE="$OPTARG"
       ;;
+    o)
+      THERMAL_CONTROLLER="$OPTARG"
+      if [[ ! "$THERMAL_CONTROLLER" =~ ^(logistic|pid)$ ]]; then
+        message "The value for the '-o' argument ($THERMAL_CONTROLLER) is invalid." 'ERROR'
+        message "The thermal controller must be either \'logistic\' or \'pid\'." 'ERROR'
+        exit 1
+      fi
+      ;;
     p)
       PERIOD="$OPTARG"
       if [[ ! "$PERIOD" =~ ^[0-9]+$ ]]; then
@@ -451,9 +515,9 @@ while getopts 'c:C:d:D:fF:hl:m:p:s:t:T:u:U:' OPT; do
       ;;
     s)
       TEMPS_SIZE="$OPTARG"
-      if [[ ! "$TEMPS_SIZE" =~ ^[0-9]+$ ]]; then
+      if [[ "$TEMPS_SIZE" -le 1 || ! "$TEMPS_SIZE" =~ ^[0-9]+$ ]]; then
         message "The value for the '-s' argument ($TEMPS_SIZE) is invalid." 'ERROR'
-        message 'The max size of the temperature array must be an integer.' 'ERROR'
+        message 'The max size of the temperature array must be an integer greater than 1.' 'ERROR'
         exit 1
       fi
       ;;
