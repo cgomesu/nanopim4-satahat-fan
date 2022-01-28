@@ -1,13 +1,13 @@
 # nanopim4-satahat-fan
-A fan control script written in bash for the [**2-pin PH2.0 12v fan connector of the NanoPi M4 SATA hat**](http://wiki.friendlyarm.com/wiki/index.php/NanoPi_M4_SATA_HAT). By default, the script uses a bounded [logistic model](https://en.wikipedia.org/wiki/Logistic_function) with a moving mid-point (based on the average temperature over time) to set the fan speed. 
+A fan control script written in bash for the [**2-pin PH2.0 12v fan connector of the NanoPi M4 SATA hat**](http://wiki.friendlyarm.com/wiki/index.php/NanoPi_M4_SATA_HAT). By default, the script uses a bounded [logistic model](https://en.wikipedia.org/wiki/Logistic_function) with a moving mid-point (based on the average temperature over time) to set the fan speed.
 
 Many of the variables used in this fan controller can be modified directly from the CLI, such as setting custom temperature thresholds (`-t`, `-T`) or disabling temperature monitoring altogether (`-f`). For a more detailed description, see [**Usage**](#usage).
 
 There's arguably more code here than necessary to run a fan controller. This was a hobby of mine (I wanted to revisit the first version which used a fixed table to set the speed) and an opportunity to learn more about bash and the sysfs interface.  
 
-This is free. There is NO WARRANTY. Use at your own risk. 
+This is free. There is NO WARRANTY. Use at your own risk.
 
-If you have any issues or suggestions, open an issue or [send me an e-mail](mailto:me@cgomesu.com). 
+If you have any issues or suggestions, open an issue or [send me an e-mail](mailto:me@cgomesu.com).
 
 
 # Requisites
@@ -46,13 +46,10 @@ cd /opt
 git clone https://github.com/cgomesu/nanopim4-satahat-fan.git
 cd nanopim4-satahat-fan
 
-# Allow the script to be executed
-chmod +x pwm-fan.sh
-
 # Test the script
-./pwm-fan.sh
+./pwm-fan.sh -F 10
 
-# Check for any error messages 
+# Check for any error messages
 # When done, press Ctrl+C after to send a SIGINT and stop the script
 ```
 
@@ -130,11 +127,11 @@ This is free. There is NO WARRANTY. Use at your own risk.
 
 
 # Run in the background
-If you're running options different than the default values, first edit the `pwm-fan.service` file to include those options into the `ExecStart=` command execution. 
+If you're running options different than the default values, first edit the `pwm-fan.service` file to include those options into the `ExecStart=` command execution.
 
 ```
 # Enable the service and start it
-systemctl enable /opt/nanopim4-satahat-fan/pwm-fan.service
+systemctl enable /opt/nanopim4-satahat-fan/systemd/pwm-fan.service
 systemctl start pwm-fan.service
 
 # Check the service status to make sure it's running without issues
