@@ -33,12 +33,12 @@ LOGISTIC_TEMP_CRITICAL=75
 LOGISTIC_a=1
 LOGISTIC_b=10
 # uncomment and edit PID_THERMAL_IDEAL to set a fixed IDEAL temperature for the PID controller;
-# otherwise, the initial temperature after startup is used as reference.
+# otherwise, the initial temperature after startup (+2°C) is used as reference.
 #PID_THERMAL_IDEAL=45
 # https://en.wikipedia.org/wiki/PID_controller#Loop_tuning
-PID_Kp=$((DEFAULT_PERIOD/200))
-PID_Ki=$((DEFAULT_PERIOD/3000))
-PID_Kd=$((DEFAULT_PERIOD/600))
+PID_Kp=$((DEFAULT_PERIOD/100))
+PID_Ki=$((DEFAULT_PERIOD/500))
+PID_Kd=$((DEFAULT_PERIOD/300))
 # path to the pwm dir in the sysfs interface
 PWMCHIP_ROOT='/sys/class/pwm/'
 # path to the thermal dir in the sysfs interface
@@ -283,7 +283,7 @@ function_pid () {
 controller_pid () {
   # i_error cannot be local to be cumulative since it was first declared.
   local p_error d_error model duty_cycle
-  p_error="$((${TEMPS[-1]}-${PID_THERMAL_IDEAL:-$((THERMAL_INITIAL))}))"
+  p_error="$((${TEMPS[-1]}-${PID_THERMAL_IDEAL:-$((THERMAL_INITIAL+2))}))"
   i_error="$((${i_error:-0}+p_error))"
   d_error="$((${TEMPS[-1]}-${TEMPS[-2]}))"
   # TODO: Kp, Ki, and Kd could be auto tunned here; currently, they are not declared and PID_ vars are used.
