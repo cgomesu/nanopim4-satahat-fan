@@ -33,7 +33,7 @@ LOGISTIC_TEMP_CRITICAL=75
 LOGISTIC_a=1
 LOGISTIC_b=10
 # uncomment and edit PID_THERMAL_IDEAL to set a fixed IDEAL temperature for the PID controller;
-# otherwise, the initial temperature after startup (+3°C) is used as reference.
+# otherwise, the initial temperature after startup is used as reference.
 #PID_THERMAL_IDEAL=45
 # https://en.wikipedia.org/wiki/PID_controller#Loop_tuning
 PID_Kp=$((DEFAULT_PERIOD/200))
@@ -283,7 +283,7 @@ function_pid () {
 controller_pid () {
   # i_error cannot be local to be cumulative since it was first declared.
   local p_error d_error model duty_cycle
-  p_error="$((${TEMPS[-1]}-${PID_THERMAL_IDEAL:-$((THERMAL_INITIAL+3))}))"
+  p_error="$((${TEMPS[-1]}-${PID_THERMAL_IDEAL:-$((THERMAL_INITIAL))}))"
   i_error="$((${i_error:-0}+p_error))"
   d_error="$((${TEMPS[-1]}-${TEMPS[-2]}))"
   # TODO: Kp, Ki, and Kd could be auto tunned here; currently, they are not declared and PID_ vars are used.
@@ -293,8 +293,12 @@ controller_pid () {
   # bound to duty cycle thresholds first in case model-based value is outside the valid range
   if [[ $((duty_cycle+model)) -lt "${DC_ABS_THRESH[0]}" ]]; then
     echo "${DC_ABS_THRESH[0]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
+    # reset i_error to prevent from acumulating further
+    i_error=0
   elif [[ $((duty_cycle+model)) -gt "${DC_ABS_THRESH[-1]}" ]]; then
     echo "${DC_ABS_THRESH[-1]}" 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
+    # reset i_error to prevent from acumulating further
+    i_error=0
   else
     echo $((duty_cycle+model)) 2> /dev/null > "$CHANNEL_FOLDER"'duty_cycle'
   fi
