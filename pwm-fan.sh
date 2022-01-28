@@ -501,7 +501,7 @@ while getopts 'c:C:d:D:fF:hl:m:o:p:s:t:T:u:U:' OPT; do
       THERMAL_CONTROLLER="$OPTARG"
       if [[ ! "$THERMAL_CONTROLLER" =~ ^(logistic|pid)$ ]]; then
         message "The value for the '-o' argument ($THERMAL_CONTROLLER) is invalid." 'ERROR'
-        message "The thermal controller must be either \'logistic\' or \'pid\'." 'ERROR'
+        message "The thermal controller must be either 'logistic' or 'pid'." 'ERROR'
         exit 1
       fi
       ;;
