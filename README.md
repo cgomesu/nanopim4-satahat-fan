@@ -13,7 +13,7 @@ If you have any issues or suggestions, open an issue or [send me an e-mail](mail
 # Table of Contents
 1. [Requisites](#requisites)
 2. [Installation](#installation)
-3. [Usage](#demos)
+3. [Usage](#usage)
 4. [Controllers](#controllers)
    - [Logistic](#logistic)
 5. [Implementation](#Implementation)
