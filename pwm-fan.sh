@@ -37,8 +37,8 @@ LOGISTIC_b=10
 #PID_THERMAL_IDEAL=45
 # https://en.wikipedia.org/wiki/PID_controller#Loop_tuning
 PID_Kp=$((DEFAULT_PERIOD/100))
-PID_Ki=$((DEFAULT_PERIOD/500))
-PID_Kd=$((DEFAULT_PERIOD/300))
+PID_Ki=$((DEFAULT_PERIOD/1000))
+PID_Kd=$((DEFAULT_PERIOD/50))
 # path to the pwm dir in the sysfs interface
 PWMCHIP_ROOT='/sys/class/pwm/'
 # path to the thermal dir in the sysfs interface
