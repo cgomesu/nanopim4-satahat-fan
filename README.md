@@ -16,6 +16,7 @@ If you have any issues or suggestions, open an issue or [send me an e-mail](mail
 3. [Usage](#usage)
 4. [Controllers](#controllers)
    - [Logistic](#logistic)
+   - [PID](#pid)
 5. [Implementation](#Implementation)
    - [Systemd](#systemd)
 
@@ -97,6 +98,7 @@ Usage:
     -h       Show this HELP message.
     -l  int  TIME (in seconds) to LOOP thermal reads. Lower means higher resolution but uses ever more resources. Default: 10
     -m  str  Name of the DEVICE to MONITOR the temperature in the thermal sysfs interface. Default: soc
+    -o  str  Name of the THERMAL CONTROLLER. Options: logistic (default), pid.
     -p  int  The fan PERIOD (in nanoseconds). Default (25kHz): 25000000.
     -s  int  The MAX SIZE of the TEMPERATURE ARRAY. Interval between data points is set by -l. Default (store last 1min data): 6.
     -t  int  Lowest TEMPERATURE threshold (in Celsius). Lower temps set the fan speed to min. Default: 25
@@ -175,6 +177,13 @@ Similarly, the following plot illustrates the effects of changing the critical t
 <p align="center">
   <img width="70%" src="img/controller-logistic-change-critical.jpg">
 </p>
+
+## PID
+PID stands for [proportional, integral, and derivative controller](https://en.wikipedia.org/wiki/PID_controller).  In brief, the **P** component of a PID controller has to do with current values; the **I** component has to do with *past* values; and the **D** component has to do with *future* values.
+
+The controller has one coefficient for each of the three components, namely *Kp*, *Ki*, and *Kd*, and currently, their default values are given by the variables `DEFAULT_Kp`, `DEFAULT_Ki`, and `DEFAULT_Kd`, respectively.  If using this thermal controller (see [Usage](#usage)), you might want to tune such default values by editing the script before runnig it.  The default coefficients are loosely ordered as follows: *Kd* > *Kp* >> *Ki*.  That is, sudden changes in temperature drive most of the changes in the fan duty cycle, followed by the difference between current and ideal temperature, and lastly, by the accumulation of the later over time.
+
+As mentioned before, the proportional gain--and consequently, the integral gain--is closely related to an arbitrary ideal temperature.  By default, the this ideal temperature is assigned after the fan startup via the variable `THERMAL_INITIAL` by measuring the current temperature and adding 2°C to it.  You can override that by uncommenting the `PID_THERMAL_IDEAL` variable at the top of the script and then assigning a value to it (in Celsius).
 
 [:arrow_up: top](#)
 
